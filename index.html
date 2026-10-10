@@ -1,0 +1,1272 @@
+<!DOCTYPE html>
+<html lang="es" class="h-full">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FerroMaster Inventory & POS System</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Alpine.js -->
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- SheetJS for Excel Export -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <!-- jsPDF and AutoTable for PDF Download -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        /* Custom scrollbar optimization for touch devices */
+        ::-webkit-scrollbar { width: 4px; height: 4px; }
+        ::-webkit-scrollbar-track { background: #f1f5f9; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+    </style>
+</head>
+<body class="bg-slate-100 text-slate-800 h-full flex flex-col overflow-x-hidden" x-data="ferroApp()">
+
+    <!-- Top Header -->
+    <header class="bg-slate-900 text-white shadow-md z-30 flex justify-between items-center px-4 md:px-6 py-3 md:py-4 shrink-0">
+        <div class="flex items-center space-x-2 md:space-x-3">
+            <!-- Mobile Menu Toggle Button -->
+            <button @click="mobileMenuOpen = !mobileMenuOpen" class="md:hidden text-amber-400 p-1.5 rounded-xl hover:bg-slate-800 transition">
+                <i class="fa-solid fa-bars text-xl"></i>
+            </button>
+            <div class="flex items-center tracking-tight select-none">
+                <span class="font-extrabold text-white text-lg md:text-2xl">Máster</span>
+                <span class="font-bold italic text-amber-400 text-lg md:text-2xl ml-1">Ferro</span>
+            </div>
+            <span class="text-[10px] bg-slate-800 text-slate-300 px-2 py-0.5 rounded-lg border border-slate-700 hidden lg:inline-block">Sistema POS & Inventario</span>
+        </div>
+        <div class="flex items-center space-x-2 md:space-x-3">
+            <button @click="exportToExcel()" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs px-2.5 md:px-3.5 py-2 rounded-xl font-medium transition flex items-center shadow-sm">
+                <i class="fa-solid fa-file-excel mr-1 md:mr-1.5"></i> <span class="hidden sm:inline">Excel</span>
+            </button>
+            <button @click="exportToPDF()" class="bg-rose-600 hover:bg-rose-700 text-white text-xs px-2.5 md:px-3.5 py-2 rounded-xl font-medium transition flex items-center shadow-sm">
+                <i class="fa-solid fa-file-pdf mr-1 md:mr-1.5"></i> <span class="hidden sm:inline">PDF</span>
+            </button>
+            <span class="text-xs bg-slate-800 px-3 py-2 rounded-xl border border-slate-700 text-slate-300 hidden xl:inline-block">
+                <i class="fa-regular fa-clock mr-1 text-amber-400"></i> <span x-text="currentDate"></span>
+            </span>
+        </div>
+    </header>
+
+    <!-- Main Container -->
+    <div class="flex flex-1 overflow-hidden relative">
+        
+        <!-- Mobile Sidebar Backdrop -->
+        <div x-show="mobileMenuOpen" @click="mobileMenuOpen = false" x-transition.opacity class="fixed inset-0 bg-slate-900/60 z-30 md:hidden backdrop-blur-sm" style="display: none;"></div>
+
+        <!-- Sidebar Navigation (Responsive Drawer on Mobile) -->
+        <aside :class="mobileMenuOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'" class="fixed md:static inset-y-0 left-0 z-40 w-64 bg-slate-800 text-slate-300 flex flex-col border-r border-slate-700 transition-transform duration-300 ease-in-out shrink-0">
+            <!-- Mobile Drawer Header -->
+            <div class="p-4 flex items-center justify-between md:hidden border-b border-slate-700 bg-slate-900">
+                <span class="font-bold text-white text-sm">Menú de Navegación</span>
+                <button @click="mobileMenuOpen = false" class="text-slate-400 hover:text-white p-1">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+
+            <div class="p-4 space-y-1.5 overflow-y-auto flex-1">
+                <button @click="activeTab = 'pos'; mobileMenuOpen = false" :class="activeTab === 'pos' ? 'bg-amber-500 text-slate-900 font-bold shadow' : 'hover:bg-slate-700 hover:text-white'" class="w-full flex items-center space-x-3 px-4 py-3 rounded-xl text-sm transition">
+                    <i class="fa-solid fa-cash-register w-5 text-center"></i>
+                    <span>Caja / POS</span>
+                </button>
+                <button @click="activeTab = 'inventory'; mobileMenuOpen = false" :class="activeTab === 'inventory' ? 'bg-amber-500 text-slate-900 font-bold shadow' : 'hover:bg-slate-700 hover:text-white'" class="w-full flex items-center space-x-3 px-4 py-3 rounded-xl text-sm transition">
+                    <i class="fa-solid fa-boxes-stacked w-5 text-center"></i>
+                    <span>Inventario (60)</span>
+                </button>
+                <button @click="activeTab = 'sales'; mobileMenuOpen = false" :class="activeTab === 'sales' ? 'bg-amber-500 text-slate-900 font-bold shadow' : 'hover:bg-slate-700 hover:text-white'" class="w-full flex items-center space-x-3 px-4 py-3 rounded-xl text-sm transition">
+                    <i class="fa-solid fa-chart-line w-5 text-center"></i>
+                    <span>Historial Ventas</span>
+                </button>
+                <button @click="activeTab = 'profits'; mobileMenuOpen = false" :class="activeTab === 'profits' ? 'bg-amber-500 text-slate-900 font-bold shadow' : 'hover:bg-slate-700 hover:text-white'" class="w-full flex items-center space-x-3 px-4 py-3 rounded-xl text-sm transition">
+                    <i class="fa-solid fa-chart-pie w-5 text-center"></i>
+                    <span>Ganancias & Análisis</span>
+                </button>
+            </div>
+
+            <!-- Quick Stats in Sidebar -->
+            <div class="mt-auto p-4 m-4 bg-slate-900/60 rounded-xl border border-slate-700 space-y-2.5 hidden md:block">
+                <div class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Resumen General</div>
+                <div class="flex justify-between items-center text-xs">
+                    <span class="text-slate-400">Productos:</span>
+                    <span class="font-bold text-white" x-text="inventory.length">60</span>
+                </div>
+                <div class="flex justify-between items-center text-xs">
+                    <span class="text-slate-400">Unidades Físicas:</span>
+                    <span class="font-bold text-amber-400" x-text="totalUnits">309</span>
+                </div>
+                <div class="flex justify-between items-center text-xs">
+                    <span class="text-slate-400">Inversión:</span>
+                    <span class="font-bold text-slate-200" x-text="formatMoney(totalInvestment)"></span>
+                </div>
+                <div class="flex justify-between items-center text-xs">
+                    <span class="text-slate-400">Venta Estimada:</span>
+                    <span class="font-bold text-emerald-400" x-text="formatMoney(totalEstimatedSales)"></span>
+                </div>
+                <div class="border-t border-slate-700/60 pt-2 flex justify-between items-center text-xs">
+                    <span class="text-slate-300 font-medium">Ganancia Total:</span>
+                    <span class="font-extrabold text-amber-400" x-text="formatMoney(totalPotentialProfit)"></span>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Content Area -->
+        <main class="flex-1 overflow-y-auto p-3 md:p-6 bg-slate-100 relative flex flex-col">
+
+            <!-- TAB: POS / CAJA -->
+            <div x-show="activeTab === 'pos'" class="h-full flex flex-col lg:flex-row gap-4 md:gap-6">
+                
+                <!-- Mobile Cart Toggle Bar (Only visible on mobile when POS tab is active) -->
+                <div class="lg:hidden bg-slate-900 text-white px-4 py-3 rounded-xl flex items-center justify-between shadow-md shrink-0">
+                    <div class="flex items-center space-x-2">
+                        <i class="fa-solid fa-cart-shopping text-amber-400"></i>
+                        <span class="text-xs font-bold" x-text="cart.length + ' ítems en carrito'"></span>
+                    </div>
+                    <div class="flex items-center space-x-3">
+                        <span class="text-sm font-extrabold text-amber-400" x-text="formatMoney(cartTotal)"></span>
+                        <button @click="mobileCartOpen = true" class="bg-amber-500 text-slate-900 px-3 py-1.5 rounded-lg text-xs font-bold shadow">
+                            Ver Carrito
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Product Catalog for POS -->
+                <div class="flex-1 flex flex-col bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden min-h-[400px] lg:min-h-0">
+                    <!-- Search & Filter Bar -->
+                    <div class="p-3 md:p-4 border-b border-slate-200 bg-slate-50 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+                        <div class="relative flex-1">
+                            <i class="fa-solid fa-search absolute left-3.5 top-3 text-slate-400"></i>
+                            <input type="text" x-model="posSearch" placeholder="Buscar herramienta o material..." class="w-full pl-10 pr-4 py-2 bg-white border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-500">
+                        </div>
+                        <select x-model="posCategory" class="bg-white border border-slate-300 rounded-xl px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500">
+                            <option value="">Todas las Categorías</option>
+                            <template x-for="cat in categories" :key="cat">
+                                <option :value="cat" x-text="cat"></option>
+                            </template>
+                        </select>
+                    </div>
+
+                    <!-- Products Grid -->
+                    <div class="flex-1 overflow-y-auto p-3 md:p-4 grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-3 md:gap-4">
+                        <template x-for="item in filteredPosProducts" :key="item.id">
+                            <div @click="addToCart(item)" class="bg-white border border-slate-200 rounded-xl p-3 flex flex-col justify-between hover:border-amber-500 hover:shadow-md transition cursor-pointer group active:scale-[0.98]">
+                                <div>
+                                    <div class="flex justify-between items-start mb-1.5">
+                                        <span class="text-[9px] md:text-[10px] font-semibold bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded truncate max-w-[90px]" x-text="item.category"></span>
+                                        <span class="text-[11px] md:text-xs font-bold text-slate-500" x-text="'Stock: ' + item.stock"></span>
+                                    </div>
+                                    <div class="flex items-center space-x-1.5 mb-1">
+                                        <span class="text-[10px] font-mono font-bold bg-slate-200 text-slate-700 px-1 py-0.5 rounded" x-text="'#' + item.code"></span>
+                                    </div>
+                                    <h3 class="font-semibold text-xs md:text-sm text-slate-800 group-hover:text-amber-600 transition line-clamp-2" x-text="item.name"></h3>
+                                </div>
+                                <div class="mt-3 flex items-center justify-between">
+                                    <span class="font-bold text-slate-900 text-sm md:text-base" x-text="formatMoney(item.price)"></span>
+                                    <button class="bg-amber-100 text-amber-700 group-hover:bg-amber-500 group-hover:text-slate-900 w-7 h-7 md:w-8 md:h-8 rounded-lg flex items-center justify-center transition">
+                                        <i class="fa-solid fa-plus text-xs"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </template>
+                        <div x-show="filteredPosProducts.length === 0" class="col-span-full py-12 text-center text-slate-400">
+                            <i class="fa-solid fa-box-open text-4xl mb-2"></i>
+                            <p class="text-sm">No se encontraron productos.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Shopping Cart Summary (Desktop Sidebar & Mobile Slide-over) -->
+                <!-- Mobile Backdrop for Cart -->
+                <div x-show="mobileCartOpen" @click="mobileCartOpen = false" x-transition.opacity class="fixed inset-0 bg-slate-900/60 z-40 lg:hidden backdrop-blur-sm" style="display: none;"></div>
+
+                <div :class="mobileCartOpen ? 'translate-x-0' : 'translate-x-full lg:translate-x-0'" class="fixed lg:static inset-y-0 right-0 z-50 w-full sm:w-96 bg-white shadow-2xl lg:shadow-sm border-l lg:border border-slate-200 flex flex-col overflow-hidden transition-transform duration-300 ease-in-out shrink-0">
+                    <div class="p-4 border-b border-slate-200 bg-slate-50 flex justify-between items-center">
+                        <h3 class="font-bold text-slate-800 flex items-center space-x-2">
+                            <i class="fa-solid fa-cart-shopping text-amber-500"></i>
+                            <span>Carrito de Venta</span>
+                        </h3>
+                        <div class="flex items-center space-x-2">
+                            <button @click="clearCart()" class="text-xs text-red-600 hover:text-red-800 font-medium transition" x-show="cart.length > 0">
+                                <i class="fa-solid fa-trash-can mr-1"></i> Vaciar
+                            </button>
+                            <button @click="mobileCartOpen = false" class="lg:hidden text-slate-400 hover:text-slate-700 p-1">
+                                <i class="fa-solid fa-xmark text-lg"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Cart Items List -->
+                    <div class="flex-1 overflow-y-auto p-4 space-y-3">
+                        <template x-for="(cartItem, index) in cart" :key="cartItem.id">
+                            <div class="flex items-center justify-between bg-slate-50 border border-slate-200 rounded-xl p-3">
+                                <div class="flex-1 pr-2">
+                                    <div class="flex items-center space-x-1 mb-0.5">
+                                        <span class="text-[10px] font-mono font-bold bg-slate-200 text-slate-700 px-1 py-0.5 rounded" x-text="'#' + cartItem.code"></span>
+                                        <h4 class="text-xs font-bold text-slate-800 line-clamp-1" x-text="cartItem.name"></h4>
+                                    </div>
+                                    <div class="text-xs text-slate-500" x-text="formatMoney(cartItem.price) + ' c/u'"></div>
+                                    <div class="text-xs font-bold text-emerald-600 mt-0.5" x-text="'Subtotal: ' + formatMoney(cartItem.price * (cartItem.qty || 0))"></div>
+                                </div>
+                                <div class="flex items-center space-x-2">
+                                    <div class="flex items-center border border-slate-300 rounded-lg bg-white overflow-hidden shadow-sm">
+                                        <button @click="updateCartQty(index, -1)" class="px-2 py-1.5 text-slate-600 hover:bg-slate-100 transition"><i class="fa-solid fa-minus text-[10px]"></i></button>
+                                        <input type="number" 
+                                               min="1" 
+                                               :max="cartItem.maxStock" 
+                                               x-model.number="cartItem.qty" 
+                                               @focus="$event.target.select()"
+                                               @input="validateManualQty(index)" 
+                                               @blur="finalizeManualQty(index)"
+                                               class="w-10 text-center text-xs font-bold text-slate-800 focus:outline-none focus:bg-amber-50 py-1 bg-transparent border-x border-slate-200">
+                                        <button @click="updateCartQty(index, 1)" class="px-2 py-1.5 text-slate-600 hover:bg-slate-100 transition"><i class="fa-solid fa-plus text-[10px]"></i></button>
+                                    </div>
+                                    <button @click="removeFromCart(index)" type="button" title="Eliminar ítem" class="w-8 h-8 rounded-lg bg-red-50 text-red-600 hover:bg-red-600 hover:text-white flex items-center justify-center transition shadow-sm cursor-pointer">
+                                        <i class="fa-solid fa-trash text-xs pointer-events-none"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </template>
+                        <div x-show="cart.length === 0" class="py-20 text-center text-slate-400">
+                            <i class="fa-solid fa-basket-shopping text-3xl mb-2"></i>
+                            <p class="text-xs">El carrito está vacío.<br>Seleccione productos del catálogo.</p>
+                        </div>
+                    </div>
+
+                    <!-- Cart Footer -->
+                    <div class="p-4 border-t border-slate-200 bg-slate-50 space-y-3">
+                        <div class="space-y-1.5 text-sm">
+                            <div class="flex justify-between items-center text-base font-bold text-slate-900 pt-1">
+                                <span>Total a Pagar:</span>
+                                <span class="text-amber-600 text-xl font-extrabold" x-text="formatMoney(cartTotal)"></span>
+                            </div>
+                        </div>
+                        <button @click="openCheckout(); mobileCartOpen = false" :disabled="cart.length === 0" :class="cart.length === 0 ? 'bg-slate-300 text-slate-500 cursor-not-allowed' : 'bg-amber-500 hover:bg-amber-600 text-slate-900 font-bold shadow'" class="w-full py-3 rounded-xl transition flex items-center justify-center space-x-2">
+                            <i class="fa-solid fa-cash-register"></i>
+                            <span>Procesar Pago</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TAB: INVENTARIO -->
+            <div x-show="activeTab === 'inventory'" class="h-full flex flex-col bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                <!-- Inventory Header & Controls -->
+                <div class="p-3 md:p-4 border-b border-slate-200 bg-slate-50 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+                    <div class="relative flex-1">
+                        <i class="fa-solid fa-search absolute left-3.5 top-3 text-slate-400"></i>
+                        <input type="text" x-model="inventorySearch" placeholder="Buscar por código, nombre o categoría..." class="w-full pl-10 pr-4 py-2 bg-white border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-500">
+                    </div>
+                    <button @click="openProductModal()" class="bg-amber-500 hover:bg-amber-600 text-slate-900 font-bold px-4 py-2 rounded-xl text-sm transition flex items-center justify-center space-x-2 shadow-sm">
+                        <i class="fa-solid fa-plus"></i>
+                        <span>Nuevo Producto</span>
+                    </button>
+                </div>
+
+                <!-- Inventory Table (Horizontally Scrollable on Mobile) -->
+                <div class="flex-1 overflow-auto">
+                    <table class="w-full text-left border-collapse min-w-[800px]">
+                        <thead>
+                            <tr class="bg-slate-100 text-slate-600 text-xs uppercase tracking-wider border-b border-slate-200 sticky top-0 z-10">
+                                <th class="p-3 font-semibold text-center">N.º</th>
+                                <th class="p-3 font-semibold text-center">Código</th>
+                                <th class="p-3 font-semibold">Producto</th>
+                                <th class="p-3 font-semibold">Categoría</th>
+                                <th class="p-3 font-semibold text-center">Cant.</th>
+                                <th class="p-3 font-semibold text-right">Compra/u.</th>
+                                <th class="p-3 font-semibold text-right">Inversión</th>
+                                <th class="p-3 font-semibold text-right">Venta/u.</th>
+                                <th class="p-3 font-semibold text-right">Venta Total</th>
+                                <th class="p-3 font-semibold text-right">Ganancia</th>
+                                <th class="p-3 font-semibold text-center">Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-200 text-sm">
+                            <template x-for="(item, index) in filteredInventory" :key="item.id">
+                                <tr class="hover:bg-slate-50 transition">
+                                    <td class="p-3 text-xs text-slate-500 font-bold text-center" x-text="index + 1"></td>
+                                    <td class="p-3 font-mono text-xs font-bold text-slate-700 text-center bg-slate-50/50" x-text="item.code"></td>
+                                    <td class="p-3 font-semibold text-slate-800" x-text="item.name"></td>
+                                    <td class="p-3">
+                                        <span class="text-xs bg-slate-100 text-slate-700 px-2.5 py-1 rounded-full font-medium" x-text="item.category"></span>
+                                    </td>
+                                    <td class="p-3 text-center font-bold text-slate-700" x-text="item.stock"></td>
+                                    <td class="p-3 text-right text-slate-600" x-text="item.buyPrice > 0 ? formatMoney(item.buyPrice) : 'Pendiente'"></td>
+                                    <td class="p-3 text-right font-bold text-slate-700" x-text="item.buyPrice > 0 ? formatMoney(item.buyPrice * item.stock) : '—'"></td>
+                                    <td class="p-3 text-right font-semibold text-slate-900" x-text="item.price > 0 ? formatMoney(item.price) : 'Pendiente'"></td>
+                                    <td class="p-3 text-right font-bold text-slate-900" x-text="item.price > 0 ? formatMoney(item.price * item.stock) : '—'"></td>
+                                    <td class="p-3 text-right font-bold text-emerald-600" x-text="item.buyPrice > 0 && item.price > 0 ? formatMoney((item.price - item.buyPrice) * item.stock) : '—'"></td>
+                                    <td class="p-3 text-center space-x-1">
+                                        <button @click="editProduct(item)" title="Editar" class="w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 transition inline-flex items-center justify-center">
+                                            <i class="fa-solid fa-pen text-xs"></i>
+                                        </button>
+                                        <button @click="promptDeleteProduct(item)" type="button" title="Eliminar producto" class="w-8 h-8 rounded-lg bg-red-50 hover:bg-red-600 text-red-600 hover:text-white transition inline-flex items-center justify-center shadow-sm cursor-pointer">
+                                            <i class="fa-solid fa-trash text-xs pointer-events-none"></i>
+                                        </button>
+                                    </td>
+                                </tr>
+                            </template>
+                            <tr x-show="filteredInventory.length === 0">
+                                <td colspan="11" class="py-12 text-center text-slate-400">
+                                    <i class="fa-solid fa-boxes-stacked text-4xl mb-2"></i>
+                                    <p class="text-sm">No se encontraron productos en el inventario.</p>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- TAB: HISTORIAL DE VENTAS -->
+            <div x-show="activeTab === 'sales'" class="h-full flex flex-col bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                <div class="p-4 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
+                    <h3 class="font-bold text-slate-800 flex items-center space-x-2">
+                        <i class="fa-solid fa-file-invoice-dollar text-amber-500"></i>
+                        <span>Registro de Transacciones</span>
+                    </h3>
+                    <span class="text-xs bg-slate-200 text-slate-700 px-3 py-1 rounded-lg font-medium" x-text="'Total Ventas: ' + sales.length"></span>
+                </div>
+                <div class="flex-1 overflow-auto">
+                    <table class="w-full text-left border-collapse min-w-[650px]">
+                        <thead>
+                            <tr class="bg-slate-100 text-slate-600 text-xs uppercase tracking-wider border-b border-slate-200 sticky top-0 z-10">
+                                <th class="p-4 font-semibold">ID Venta</th>
+                                <th class="p-4 font-semibold">Fecha / Hora</th>
+                                <th class="p-4 font-semibold">Método Pago</th>
+                                <th class="p-4 font-semibold">Artículos</th>
+                                <th class="p-4 font-semibold">Total</th>
+                                <th class="p-4 font-semibold text-center">Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-200 text-sm">
+                            <template x-for="sale in sales" :key="sale.id">
+                                <tr class="hover:bg-slate-50 transition">
+                                    <td class="p-4 font-mono font-bold text-slate-800" x-text="sale.id"></td>
+                                    <td class="p-4 text-slate-600 text-xs" x-text="sale.date"></td>
+                                    <td class="p-4">
+                                        <span class="text-xs bg-slate-100 text-slate-700 px-2.5 py-1 rounded-full font-medium uppercase" x-text="sale.paymentMethod"></span>
+                                    </td>
+                                    <td class="p-4 text-slate-600" x-text="sale.itemsCount + ' productos'"></td>
+                                    <td class="p-4 font-bold text-emerald-600" x-text="formatMoney(sale.total)"></td>
+                                    <td class="p-4 text-center">
+                                        <button @click="viewSaleDetail(sale)" title="Ver Detalle y Devolución" class="w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 transition inline-flex items-center justify-center">
+                                            <i class="fa-solid fa-eye text-xs"></i>
+                                        </button>
+                                    </td>
+                                </tr>
+                            </template>
+                            <tr x-show="sales.length === 0">
+                                <td colspan="6" class="py-12 text-center text-slate-400">
+                                    <i class="fa-solid fa-receipt text-4xl mb-2"></i>
+                                    <p class="text-sm">Aún no se han registrado ventas.</p>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- TAB: GANANCIAS & ANÁLISIS -->
+            <div x-show="activeTab === 'profits'" class="h-full flex flex-col space-y-6 overflow-y-auto">
+                <!-- Summary Metric Cards -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex items-center space-x-4">
+                        <div class="w-12 h-12 bg-blue-100 text-blue-600 rounded-xl flex items-center justify-center text-xl font-bold shrink-0">
+                            <i class="fa-solid fa-wallet"></i>
+                        </div>
+                        <div>
+                            <div class="text-xs text-slate-500 font-semibold uppercase">Inversión Total (Stock)</div>
+                            <div class="text-xl font-extrabold text-slate-900 mt-0.5" x-text="formatMoney(totalInvestment)"></div>
+                        </div>
+                    </div>
+                    <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex items-center space-x-4">
+                        <div class="w-12 h-12 bg-emerald-100 text-emerald-600 rounded-xl flex items-center justify-center text-xl font-bold shrink-0">
+                            <i class="fa-solid fa-coins"></i>
+                        </div>
+                        <div>
+                            <div class="text-xs text-slate-500 font-semibold uppercase">Venta Estimada (Stock)</div>
+                            <div class="text-xl font-extrabold text-emerald-600 mt-0.5" x-text="formatMoney(totalEstimatedSales)"></div>
+                        </div>
+                    </div>
+                    <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex items-center space-x-4">
+                        <div class="w-12 h-12 bg-amber-100 text-amber-600 rounded-xl flex items-center justify-center text-xl font-bold shrink-0">
+                            <i class="fa-solid fa-chart-line"></i>
+                        </div>
+                        <div>
+                            <div class="text-xs text-slate-500 font-semibold uppercase">Ganancia Potencial Total</div>
+                            <div class="text-xl font-extrabold text-amber-600 mt-0.5" x-text="formatMoney(totalPotentialProfit)"></div>
+                        </div>
+                    </div>
+                    <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex items-center space-x-4">
+                        <div class="w-12 h-12 bg-violet-100 text-violet-600 rounded-xl flex items-center justify-center text-xl font-bold shrink-0">
+                            <i class="fa-solid fa-percent"></i>
+                        </div>
+                        <div>
+                            <div class="text-xs text-slate-500 font-semibold uppercase">Margen Promedio</div>
+                            <div class="text-xl font-extrabold text-violet-600 mt-0.5" x-text="averageProfitMargin + '%'"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Category Breakdown Table -->
+                <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                    <div class="p-4 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
+                        <h3 class="font-bold text-slate-800 flex items-center space-x-2">
+                            <i class="fa-solid fa-layer-group text-amber-500"></i>
+                            <span>Rentabilidad por Categoría</span>
+                        </h3>
+                        <span class="text-xs bg-slate-200 text-slate-700 px-3 py-1 rounded-lg font-medium" x-text="categoryProfitSummary.length + ' categorías'"></span>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left border-collapse text-sm min-w-[700px]">
+                            <thead>
+                                <tr class="bg-slate-100 text-slate-600 text-xs uppercase tracking-wider border-b border-slate-200">
+                                    <th class="p-4 font-semibold">Categoría</th>
+                                    <th class="p-4 font-semibold text-center">Productos</th>
+                                    <th class="p-4 font-semibold text-center">Unidades</th>
+                                    <th class="p-4 font-semibold text-right">Inversión</th>
+                                    <th class="p-4 font-semibold text-right">Venta Estimada</th>
+                                    <th class="p-4 font-semibold text-right">Ganancia Total</th>
+                                    <th class="p-4 font-semibold text-center">Margen %</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-200">
+                                <template x-for="cat in categoryProfitSummary" :key="cat.name">
+                                    <tr class="hover:bg-slate-50 transition">
+                                        <td class="p-4 font-bold text-slate-800" x-text="cat.name"></td>
+                                        <td class="p-4 text-center text-slate-600" x-text="cat.count"></td>
+                                        <td class="p-4 text-center font-semibold text-slate-700" x-text="cat.units"></td>
+                                        <td class="p-4 text-right text-slate-600" x-text="formatMoney(cat.investment)"></td>
+                                        <td class="p-4 text-right font-semibold text-slate-800" x-text="formatMoney(cat.sales)"></td>
+                                        <td class="p-4 text-right font-bold text-emerald-600" x-text="formatMoney(cat.profit)"></td>
+                                        <td class="p-4 text-center">
+                                            <span class="px-2.5 py-1 rounded-full text-xs font-bold" :class="cat.margin >= 30 ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'" x-text="cat.margin + '%'"></span>
+                                        </td>
+                                    </tr>
+                                </template>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Top Most Profitable Items -->
+                <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                    <div class="p-4 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
+                        <h3 class="font-bold text-slate-800 flex items-center space-x-2">
+                            <i class="fa-solid fa-trophy text-amber-500"></i>
+                            <span>Productos con Mayor Margen de Ganancia (Top 10)</span>
+                        </h3>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left border-collapse text-sm min-w-[700px]">
+                            <thead>
+                                <tr class="bg-slate-100 text-slate-600 text-xs uppercase tracking-wider border-b border-slate-200">
+                                    <th class="p-4 font-semibold text-center">Cod</th>
+                                    <th class="p-4 font-semibold">Producto</th>
+                                    <th class="p-4 font-semibold">Categoría</th>
+                                    <th class="p-4 font-semibold text-right">Compra/u</th>
+                                    <th class="p-4 font-semibold text-right">Venta/u</th>
+                                    <th class="p-4 font-semibold text-right">Ganancia/u</th>
+                                    <th class="p-4 font-semibold text-center">Margen %</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-200">
+                                <template x-for="item in topProfitableItems" :key="item.id">
+                                    <tr class="hover:bg-slate-50 transition">
+                                        <td class="p-4 font-mono font-bold text-slate-700 text-center" x-text="item.code"></td>
+                                        <td class="p-4 font-semibold text-slate-800" x-text="item.name"></td>
+                                        <td class="p-4 text-xs text-slate-600">
+                                            <span class="bg-slate-100 px-2 py-1 rounded-full" x-text="item.category"></span>
+                                        </td>
+                                        <td class="p-4 text-right text-slate-600" x-text="formatMoney(item.buyPrice)"></td>
+                                        <td class="p-4 text-right font-semibold text-slate-900" x-text="formatMoney(item.price)"></td>
+                                        <td class="p-4 text-right font-bold text-emerald-600" x-text="formatMoney(item.price - item.buyPrice)"></td>
+                                        <td class="p-4 text-center">
+                                            <span class="px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800" x-text="item.marginPct + '%'"></span>
+                                        </td>
+                                    </tr>
+                                </template>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+        </main>
+    </div>
+
+    <!-- PRODUCT MODAL (Add / Edit) -->
+    <div x-show="isProductModalOpen" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-3 md:p-4" style="display: none;">
+        <div @click.away="closeProductModal()" class="bg-white rounded-2xl shadow-xl w-full max-w-lg overflow-hidden border border-slate-200 max-h-[90vh] flex flex-col">
+            <div class="p-4 bg-slate-900 text-white flex justify-between items-center shrink-0">
+                <h3 class="font-bold text-base" x-text="isEditing ? 'Editar Producto' : 'Nuevo Producto'"></h3>
+                <button @click="closeProductModal()" class="text-slate-400 hover:text-white transition"><i class="fa-solid fa-xmark text-lg"></i></button>
+            </div>
+            <form @submit.prevent="saveProduct()" class="p-4 md:p-6 space-y-4 overflow-y-auto flex-1">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-700 uppercase mb-1">Código (Ej. 1, 2, 3...)</label>
+                        <input type="text" x-model="productForm.code" required placeholder="Ej. 61" class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm font-mono font-bold focus:outline-none focus:ring-2 focus:ring-amber-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-700 uppercase mb-1">Categoría</label>
+                        <select x-model="productForm.category" required class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-500">
+                            <option value="">Seleccione...</option>
+                            <template x-for="cat in categories" :key="cat">
+                                <option :value="cat" x-text="cat"></option>
+                            </template>
+                        </select>
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 uppercase mb-1">Nombre del Producto</label>
+                    <input type="text" x-model="productForm.name" required placeholder="Ej. Taladro Percutor 600W" class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-500">
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-700 uppercase mb-1">Compra Unit. ($)</label>
+                        <input type="number" step="0.0001" min="0" x-model.number="productForm.buyPrice" required class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-700 uppercase mb-1">Venta Unit. ($)</label>
+                        <input type="number" step="0.01" min="0" x-model.number="productForm.price" required class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-700 uppercase mb-1">Cantidad / Stock</label>
+                        <input type="number" min="0" x-model.number="productForm.stock" required class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-500">
+                    </div>
+                </div>
+                <div class="flex justify-end space-x-3 pt-4 border-t border-slate-200">
+                    <button type="button" @click="closeProductModal()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-sm font-medium transition">Cancelar</button>
+                    <button type="submit" class="px-5 py-2 bg-amber-500 hover:bg-amber-600 text-slate-900 rounded-xl text-sm font-bold shadow transition">Guardar Producto</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- DELETE CONFIRMATION MODAL -->
+    <div x-show="isDeleteModalOpen" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4" style="display: none;">
+        <div @click.away="isDeleteModalOpen = false" class="bg-white rounded-2xl shadow-xl w-full max-w-sm overflow-hidden border border-slate-200 text-center p-6 space-y-4">
+            <div class="w-12 h-12 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto text-xl">
+                <i class="fa-solid fa-triangle-exclamation"></i>
+            </div>
+            <div>
+                <h3 class="font-bold text-base text-slate-900">¿Eliminar Producto?</h3>
+                <p class="text-xs text-slate-500 mt-1">Esta acción eliminará permanentemente <span class="font-semibold text-slate-700" x-text="itemToDelete ? itemToDelete.name : ''"></span> del inventario.</p>
+            </div>
+            <div class="flex space-x-3 pt-2">
+                <button @click="isDeleteModalOpen = false" class="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-medium transition">Cancelar</button>
+                <button @click="confirmDeleteProduct()" class="flex-1 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-bold shadow transition">Eliminar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- CHECKOUT MODAL -->
+    <div x-show="isCheckoutOpen" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-3 md:p-4" style="display: none;">
+        <div @click.away="isCheckoutOpen = false" class="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden border border-slate-200 max-h-[90vh] flex flex-col">
+            <div class="p-4 bg-slate-900 text-white flex justify-between items-center shrink-0">
+                <h3 class="font-bold text-base">Finalizar Venta</h3>
+                <button @click="isCheckoutOpen = false" class="text-slate-400 hover:text-white transition"><i class="fa-solid fa-xmark text-lg"></i></button>
+            </div>
+            <div class="p-4 md:p-6 space-y-4 overflow-y-auto flex-1">
+                <div class="bg-slate-50 p-4 rounded-xl border border-slate-200 text-center">
+                    <div class="text-xs text-slate-500 uppercase font-semibold">Total a Cancelar</div>
+                    <div class="text-3xl font-black text-amber-600 mt-1" x-text="formatMoney(cartTotal)"></div>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 uppercase mb-2">Método de Pago</label>
+                    <div class="grid grid-cols-3 gap-2 md:gap-3">
+                        <button type="button" @click="paymentMethod = 'efectivo'" :class="paymentMethod === 'efectivo' ? 'bg-amber-500 text-slate-900 font-bold border-amber-500 shadow' : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'" class="py-3 px-1 border rounded-xl text-xs flex flex-col items-center justify-center space-y-1 transition">
+                            <i class="fa-solid fa-money-bill-wave text-base"></i>
+                            <span>Efectivo</span>
+                        </button>
+                        <button type="button" @click="paymentMethod = 'tarjeta'" :class="paymentMethod === 'tarjeta' ? 'bg-amber-500 text-slate-900 font-bold border-amber-500 shadow' : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'" class="py-3 px-1 border rounded-xl text-xs flex flex-col items-center justify-center space-y-1 transition">
+                            <i class="fa-solid fa-credit-card text-base"></i>
+                            <span>Tarjeta</span>
+                        </button>
+                        <button type="button" @click="paymentMethod = 'transferencia'" :class="paymentMethod === 'transferencia' ? 'bg-amber-500 text-slate-900 font-bold border-amber-500 shadow' : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'" class="py-3 px-1 border rounded-xl text-xs flex flex-col items-center justify-center space-y-1 transition">
+                            <i class="fa-solid fa-building-columns text-base"></i>
+                            <span>Transfer.</span>
+                        </button>
+                    </div>
+                </div>
+                <div x-show="paymentMethod === 'efectivo'">
+                    <label class="block text-xs font-semibold text-slate-700 uppercase mb-1">Efectivo Recibido ($)</label>
+                    <input type="number" step="0.01" 
+                           x-model.number="cashReceived" 
+                           @focus="$event.target.select()"
+                           placeholder="0.00" 
+                           class="w-full px-3 py-2.5 border border-slate-300 rounded-xl text-sm font-bold focus:outline-none focus:ring-2 focus:ring-amber-500">
+                    <div class="flex justify-between items-center mt-2 text-sm" x-show="cashReceived >= cartTotal">
+                        <span class="text-slate-600 font-medium">Cambio / Vuelto:</span>
+                        <span class="font-bold text-emerald-600" x-text="formatMoney(cashReceived - cartTotal)"></span>
+                    </div>
+                </div>
+                <div class="flex space-x-3 pt-4 border-t border-slate-200">
+                    <button @click="isCheckoutOpen = false" class="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-sm font-medium transition">Cancelar</button>
+                    <button @click="completeSale()" :disabled="paymentMethod === 'efectivo' && cashReceived < cartTotal" :class="(paymentMethod === 'efectivo' && cashReceived < cartTotal) ? 'bg-slate-300 text-slate-500 cursor-not-allowed' : 'bg-emerald-600 hover:bg-emerald-700 text-white font-bold shadow'" class="flex-1 py-3 rounded-xl text-sm transition flex items-center justify-center space-x-2">
+                        <i class="fa-solid fa-check"></i>
+                        <span>Completar Venta</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- SALE DETAIL MODAL WITH RETURN FUNCTIONALITY -->
+    <div x-show="isSaleDetailOpen" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-3 md:p-4" style="display: none;">
+        <div @click.away="isSaleDetailOpen = false" class="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden border border-slate-200 max-h-[90vh] flex flex-col">
+            <div class="p-4 bg-slate-900 text-white flex justify-between items-center shrink-0">
+                <h3 class="font-bold text-base" x-text="'Detalle de Venta #' + (selectedSale ? selectedSale.id : '')"></h3>
+                <button @click="isSaleDetailOpen = false" class="text-slate-400 hover:text-white transition"><i class="fa-solid fa-xmark text-lg"></i></button>
+            </div>
+            <div class="p-4 md:p-6 space-y-4 overflow-y-auto flex-1" x-show="selectedSale">
+                <div class="text-xs text-slate-500 flex justify-between">
+                    <span>Fecha: <strong class="text-slate-700" x-text="selectedSale?.date"></strong></span>
+                    <span>Método: <strong class="text-slate-700 uppercase" x-text="selectedSale?.paymentMethod"></strong></span>
+                </div>
+                
+                <!-- Items Table in Sale Detail with Return Buttons per Item -->
+                <div class="border border-slate-200 rounded-xl overflow-hidden max-h-52 overflow-y-auto">
+                    <table class="w-full text-xs text-left">
+                        <thead class="bg-slate-50 border-b border-slate-200 text-slate-600 sticky top-0">
+                            <tr>
+                                <th class="p-2">Ítem</th>
+                                <th class="p-2 text-center">Cant</th>
+                                <th class="p-2 text-right">Subtotal</th>
+                                <th class="p-2 text-center">Devolver</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-100">
+                            <template x-for="(item, idx) in (selectedSale ? selectedSale.items : [])" :key="item.id + '-' + idx">
+                                <tr>
+                                    <td class="p-2 font-medium text-slate-800" x-text="'[' + item.code + '] ' + item.name"></td>
+                                    <td class="p-2 text-center font-bold" x-text="item.qty"></td>
+                                    <td class="p-2 text-right font-bold text-slate-900" x-text="formatMoney(item.price * item.qty)"></td>
+                                    <td class="p-2 text-center">
+                                        <button @click="promptReturnProduct(item, idx)" title="Devolver solo este producto al inventario" class="px-2 py-1 bg-amber-100 hover:bg-amber-500 text-amber-800 hover:text-slate-900 font-bold rounded text-[10px] transition">
+                                            Devolver
+                                        </button>
+                                    </td>
+                                </tr>
+                            </template>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="bg-slate-50 p-3 rounded-xl space-y-1 text-sm border border-slate-200">
+                    <div class="flex justify-between font-bold text-slate-900 text-base">
+                        <span>Total Pagado:</span>
+                        <span class="text-emerald-600" x-text="formatMoney(selectedSale?.total)"></span>
+                    </div>
+                </div>
+
+                <!-- Complete Sale Return Action -->
+                <div class="pt-2 border-t border-slate-200 flex space-x-2">
+                    <button @click="promptReturnAllProducts()" class="w-full py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold transition flex items-center justify-center space-x-2">
+                        <i class="fa-solid fa-rotate-left"></i>
+                        <span>Anular y Devolver Todos al Inventario</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- PASSWORD CONFIRMATION MODAL FOR RETURNS -->
+    <div x-show="isReturnAuthOpen" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4" style="display: none;">
+        <div @click.away="isReturnAuthOpen = false" class="bg-white rounded-2xl shadow-xl w-full max-w-sm overflow-hidden border border-slate-200 p-6 space-y-4 text-center">
+            <div class="w-12 h-12 bg-amber-100 text-amber-600 rounded-full flex items-center justify-center mx-auto text-xl">
+                <i class="fa-solid fa-lock"></i>
+            </div>
+            <div>
+                <h3 class="font-bold text-base text-slate-900">Autorizar Devolución</h3>
+                <p class="text-xs text-slate-500 mt-1">
+                    <span x-text="returnMode === 'all' ? 'Se devolverán TODOS los productos al inventario.' : ('Se devolverá: ' + (itemToReturn ? itemToReturn.name : ''))"></span>
+                </p>
+                <p class="text-xs font-semibold text-slate-700 mt-2">Ingrese la clave de seguridad:</p>
+            </div>
+            <div>
+                <input type="password" 
+                       x-model="returnAuthPassword" 
+                       @keyup.enter="confirmReturnWithPassword()" 
+                       placeholder="••••" 
+                       class="w-full text-center px-4 py-2.5 border border-slate-300 rounded-xl text-lg font-bold tracking-widest focus:outline-none focus:ring-2 focus:ring-amber-500">
+                <div x-show="returnPasswordError" class="text-xs font-bold text-red-600 mt-1">Clave incorrecta. Intente nuevamente.</div>
+            </div>
+            <div class="flex space-x-3 pt-2">
+                <button @click="isReturnAuthOpen = false" class="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-medium transition">Cancelar</button>
+                <button @click="confirmReturnWithPassword()" class="flex-1 py-2.5 bg-amber-500 hover:bg-amber-600 text-slate-900 rounded-xl text-xs font-bold shadow transition">Autorizar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- NOTIFICATION TOAST -->
+    <div x-show="notification.show" x-transition class="fixed bottom-6 right-6 z-50 bg-slate-900 text-white px-4 py-3 rounded-xl shadow-xl border border-slate-700 flex items-center space-x-3 text-sm max-w-xs">
+        <i class="fa-solid fa-circle-check text-emerald-400 shrink-0"></i>
+        <span x-text="notification.message"></span>
+    </div>
+
+    <!-- JavaScript Application Logic -->
+    <script>
+        function ferroApp() {
+            return {
+                activeTab: 'pos',
+                currentDate: '',
+                posSearch: '',
+                posCategory: '',
+                inventorySearch: '',
+                isProductModalOpen: false,
+                isCheckoutOpen: false,
+                isDeleteModalOpen: false,
+                isSaleDetailOpen: false,
+                isReturnAuthOpen: false,
+                mobileMenuOpen: false,
+                mobileCartOpen: false,
+                isEditing: false,
+                paymentMethod: 'efectivo',
+                cashReceived: 0,
+                itemToDelete: null,
+                selectedSale: null,
+                
+                // Return System State
+                returnMode: 'all',
+                itemToReturn: null,
+                itemToReturnIndex: null,
+                returnAuthPassword: '',
+                returnPasswordError: false,
+
+                notification: {
+                    show: false,
+                    message: ''
+                },
+
+                categories: [
+                    'Electricidad',
+                    'Ferretería y Cables',
+                    'Iluminación',
+                    'Tornillería y Cajas',
+                    'Plomería',
+                    'Adhesivos y Pastas',
+                    'Seguridad y Misceláneos'
+                ],
+
+                // 60 products list with Sequential Numerical Codes 1 to 60
+                inventory: [
+                    { id: 1, code: '1', name: 'Cinta aislante 3M', category: 'Electricidad', buyPrice: 0.65, price: 0.80, stock: 10 },
+                    { id: 2, code: '2', name: 'Interruptor sobrepuesto Tik Tak', category: 'Electricidad', buyPrice: 0.40, price: 0.50, stock: 3 },
+                    { id: 3, code: '3', name: 'Tomacorriente sobrepuesto', category: 'Electricidad', buyPrice: 0.70, price: 0.80, stock: 3 },
+                    { id: 4, code: '4', name: 'Boquilla plana', category: 'Iluminación', buyPrice: 0.50, price: 0.60, stock: 3 },
+                    { id: 5, code: '5', name: 'Tomacorriente cuadrado América Lite', category: 'Electricidad', buyPrice: 1.10, price: 1.50, stock: 2 },
+                    { id: 6, code: '6', name: 'Boquilla brotada', category: 'Iluminación', buyPrice: 0.65, price: 0.80, stock: 2 },
+                    { id: 7, code: '7', name: 'Boquilla con cable', category: 'Iluminación', buyPrice: 0.50, price: 0.60, stock: 3 },
+                    { id: 8, code: '8', name: 'Boquilla con enchufe', category: 'Iluminación', buyPrice: 0.45, price: 0.60, stock: 2 },
+                    { id: 9, code: '9', name: 'Interruptor Ticino para caja de 1', category: 'Electricidad', buyPrice: 1.50, price: 2.00, stock: 3 },
+                    { id: 10, code: '10', name: 'Interruptor Ticino para caja de 2', category: 'Electricidad', buyPrice: 2.80, price: 3.50, stock: 3 },
+                    { id: 11, code: '11', name: 'Interruptor Ticino para caja de 3', category: 'Electricidad', buyPrice: 3.80, price: 4.50, stock: 3 },
+                    { id: 12, code: '12', name: 'Tubo de luz de ½ pulgada', category: 'Electricidad', buyPrice: 0.60, price: 0.75, stock: 5 },
+                    { id: 13, code: '13', name: 'Enchufe amarillo', category: 'Electricidad', buyPrice: 0.45, price: 0.60, stock: 5 },
+                    { id: 14, code: '14', name: 'Foco pequeño de 9 W', category: 'Iluminación', buyPrice: 0.55, price: 0.75, stock: 3 },
+                    { id: 15, code: '15', name: 'Foco para pollitos', category: 'Iluminación', buyPrice: 0.90, price: 1.25, stock: 5 },
+                    { id: 16, code: '16', name: 'Foco Osram de 20 W', category: 'Iluminación', buyPrice: 1.25, price: 1.80, stock: 3 },
+                    { id: 17, code: '17', name: 'Foco Osram de 40 W', category: 'Iluminación', buyPrice: 3.25, price: 4.00, stock: 1 },
+                    { id: 18, code: '18', name: 'Caja rectangular empotrada', category: 'Tornillería y Cajas', buyPrice: 0.25, price: 0.35, stock: 10 },
+                    { id: 19, code: '19', name: 'Caja octagonal', category: 'Tornillería y Cajas', buyPrice: 0.25, price: 0.35, stock: 5 },
+                    { id: 20, code: '20', name: 'Tapa para toma', category: 'Electricidad', buyPrice: 0.15, price: 0.25, stock: 5 },
+                    { id: 21, code: '21', name: 'Tomacorriente azul Estom para caja', category: 'Electricidad', buyPrice: 1.20, price: 1.75, stock: 2 },
+                    { id: 22, code: '22', name: 'Tomacorriente para aire acondicionado Veto', category: 'Electricidad', buyPrice: 2.80, price: 3.50, stock: 2 },
+                    { id: 23, code: '23', name: 'Enchufe América Lite', category: 'Electricidad', buyPrice: 2.50, price: 3.00, stock: 2 },
+                    { id: 24, code: '24', name: 'Enchufe ETN', category: 'Electricidad', buyPrice: 3.25, price: 4.00, stock: 1 },
+                    { id: 25, code: '25', name: 'Tapa ciega', category: 'Electricidad', buyPrice: 0.15, price: 0.25, stock: 5 },
+                    { id: 26, code: '26', name: 'Tapa china redonda (regalo)', category: 'Seguridad y Misceláneos', buyPrice: 0.00, price: 0.00, stock: 10 },
+                    { id: 27, code: '27', name: 'Interruptor Bossi de 1 módulo', category: 'Electricidad', buyPrice: 0.85, price: 1.25, stock: 3 },
+                    { id: 28, code: '28', name: 'Tomacorriente KAF para caja', category: 'Electricidad', buyPrice: 0.90, price: 1.25, stock: 5 },
+                    { id: 29, code: '29', name: 'Gafas oscuras', category: 'Seguridad y Misceláneos', buyPrice: 0.65, price: 1.00, stock: 3 },
+                    { id: 30, code: '30', name: 'Gafas transparentes', category: 'Seguridad y Misceláneos', buyPrice: 0.00, price: 1.00, stock: 3 },
+                    { id: 31, code: '31', name: 'Grapas para cable (paquete de 100)', category: 'Ferretería y Cables', buyPrice: 0.0125, price: 0.025, stock: 100 },
+                    { id: 32, code: '32', name: 'Vidrio para soldar', category: 'Seguridad y Misceláneos', buyPrice: 0.15, price: 0.40, stock: 5 },
+                    { id: 33, code: '33', name: 'Regleta fina para meter cable', category: 'Ferretería y Cables', buyPrice: 0.60, price: 0.80, stock: 3 },
+                    { id: 34, code: '34', name: 'Regleta gruesa para meter cable', category: 'Ferretería y Cables', buyPrice: 0.60, price: 0.80, stock: 3 },
+                    { id: 35, code: '35', name: 'Unión roscable de ½ ERA', category: 'Plomería', buyPrice: 0.30, price: 0.40, stock: 5 },
+                    { id: 36, code: '36', name: 'Unión roscable de ½ económica', category: 'Plomería', buyPrice: 0.15, price: 0.25, stock: 5 },
+                    { id: 37, code: '37', name: 'Unión roscable de ¾', category: 'Plomería', buyPrice: 0.50, price: 0.60, stock: 3 },
+                    { id: 38, code: '38', name: 'Neplo perdido', category: 'Plomería', buyPrice: 0.05, price: 0.15, stock: 5 },
+                    { id: 39, code: '39', name: 'Neplo de ½ pulgada', category: 'Plomería', buyPrice: 0.15, price: 0.25, stock: 3 },
+                    { id: 40, code: '40', name: 'Nudo universal', category: 'Plomería', buyPrice: 0.70, price: 0.85, stock: 2 },
+                    { id: 41, code: '41', name: 'Acople macho', category: 'Plomería', buyPrice: 0.15, price: 0.30, stock: 3 },
+                    { id: 42, code: '42', name: 'Acople hembra', category: 'Plomería', buyPrice: 0.15, price: 0.30, stock: 3 },
+                    { id: 43, code: '43', name: 'Tapón hembra de ½ pulgada', category: 'Plomería', buyPrice: 0.15, price: 0.25, stock: 3 },
+                    { id: 44, code: '44', name: 'Tapón macho de ½ pulgada', category: 'Plomería', buyPrice: 0.15, price: 0.25, stock: 3 },
+                    { id: 45, code: '45', name: 'T roscable de ½ pulgada', category: 'Plomería', buyPrice: 0.30, price: 0.40, stock: 3 },
+                    { id: 46, code: '46', name: 'Reductor de ¾ a ½ pulgada', category: 'Plomería', buyPrice: 0.30, price: 0.40, stock: 3 },
+                    { id: 47, code: '47', name: 'Unión para manguera de ½', category: 'Plomería', buyPrice: 0.15, price: 0.25, stock: 3 },
+                    { id: 48, code: '48', name: 'Codo para manguera de ½', category: 'Plomería', buyPrice: 0.15, price: 0.25, stock: 3 },
+                    { id: 49, code: '49', name: 'T para manguera de ½', category: 'Plomería', buyPrice: 0.20, price: 0.30, stock: 3 },
+                    { id: 50, code: '50', name: 'Abrazadera azul reforzada de ½ pulgada', category: 'Plomería', buyPrice: 0.30, price: 0.40, stock: 5 },
+                    { id: 51, code: '51', name: 'Abrazadera azul reforzada para gas', category: 'Plomería', buyPrice: 0.30, price: 0.40, stock: 5 },
+                    { id: 52, code: '52', name: 'Abrazadera azul reforzada de 1 pulgada', category: 'Plomería', buyPrice: 0.45, price: 0.55, stock: 2 },
+                    { id: 53, code: '53', name: 'Silicón transparente ABRO', category: 'Adhesivos y Pastas', buyPrice: 1.25, price: 1.60, stock: 2 },
+                    { id: 54, code: '54', name: 'Pasta gris para calor', category: 'Adhesivos y Pastas', buyPrice: 1.40, price: 2.00, stock: 2 },
+                    { id: 55, code: '55', name: 'Pasta Permatex para pegar tubos', category: 'Adhesivos y Pastas', buyPrice: 1.50, price: 2.00, stock: 2 },
+                    { id: 56, code: '56', name: 'Pegatubo, frasco pequeño', category: 'Adhesivos y Pastas', buyPrice: 1.10, price: 1.30, stock: 3 },
+                    { id: 57, code: '57', name: 'Llave de palanca para jardín amarilla', category: 'Plomería', buyPrice: 2.25, price: 3.00, stock: 2 },
+                    { id: 58, code: '58', name: 'Llave de fierro roja', category: 'Plomería', buyPrice: 2.75, price: 3.25, stock: 2 },
+                    { id: 59, code: '59', name: 'Llave de jardín plástica', category: 'Plomería', buyPrice: 0.80, price: 1.00, stock: 3 },
+                    { id: 60, code: '60', name: 'Llave de paso plástica roja', category: 'Plomería', buyPrice: 0.75, price: 1.00, stock: 2 }
+                ],
+
+                cart: [],
+                sales: [],
+
+                productForm: {
+                    id: null,
+                    code: '',
+                    name: '',
+                    category: '',
+                    buyPrice: 0,
+                    price: 0,
+                    stock: 0
+                },
+
+                init() {
+                    this.updateClock();
+                    setInterval(() => this.updateClock(), 1000);
+                },
+
+                updateClock() {
+                    const now = new Date();
+                    this.currentDate = now.toLocaleDateString('es-ES', { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+                },
+
+                showNotification(msg) {
+                    this.notification.message = msg;
+                    this.notification.show = true;
+                    setTimeout(() => {
+                        this.notification.show = false;
+                    }, 3000);
+                },
+
+                formatMoney(amount) {
+                    return '$' + Number(amount || 0).toFixed(2);
+                },
+
+                get totalUnits() {
+                    return this.inventory.reduce((sum, i) => sum + i.stock, 0);
+                },
+
+                get totalInvestment() {
+                    return this.inventory.reduce((sum, i) => sum + (i.buyPrice * i.stock), 0);
+                },
+
+                get totalEstimatedSales() {
+                    return this.inventory.reduce((sum, i) => sum + (i.price * i.stock), 0);
+                },
+
+                get totalPotentialProfit() {
+                    return this.inventory.reduce((sum, i) => {
+                        if (i.buyPrice > 0 && i.price > 0) {
+                            return sum + ((i.price - i.buyPrice) * i.stock);
+                        }
+                        return sum;
+                    }, 0);
+                },
+
+                get averageProfitMargin() {
+                    const validItems = this.inventory.filter(i => i.buyPrice > 0 && i.price > 0);
+                    if (validItems.length === 0) return '0.00';
+                    const totalMarginPct = validItems.reduce((sum, i) => {
+                        const margin = ((i.price - i.buyPrice) / i.price) * 100;
+                        return sum + margin;
+                    }, 0);
+                    return (totalMarginPct / validItems.length).toFixed(1);
+                },
+
+                get categoryProfitSummary() {
+                    const summary = {};
+                    this.categories.forEach(cat => {
+                        summary[cat] = { name: cat, count: 0, units: 0, investment: 0, sales: 0, profit: 0 };
+                    });
+
+                    this.inventory.forEach(item => {
+                        const cat = item.category || 'Otros';
+                        if (!summary[cat]) {
+                            summary[cat] = { name: cat, count: 0, units: 0, investment: 0, sales: 0, profit: 0 };
+                        }
+                        summary[cat].count++;
+                        summary[cat].units += item.stock;
+                        const inv = (item.buyPrice || 0) * item.stock;
+                        const sale = (item.price || 0) * item.stock;
+                        summary[cat].investment += inv;
+                        summary[cat].sales += sale;
+                        summary[cat].profit += (sale - inv);
+                    });
+
+                    return Object.values(summary).map(cat => {
+                        const margin = cat.sales > 0 ? ((cat.profit / cat.sales) * 100).toFixed(1) : '0.0';
+                        return { ...cat, margin: parseFloat(margin) };
+                    }).filter(cat => cat.count > 0);
+                },
+
+                get topProfitableItems() {
+                    return this.inventory
+                        .filter(i => i.buyPrice > 0 && i.price > 0 && i.price > i.buyPrice)
+                        .map(i => {
+                            const marginPct = (((i.price - i.buyPrice) / i.price) * 100).toFixed(1);
+                            return { ...i, marginPct: parseFloat(marginPct) };
+                        })
+                        .sort((a, b) => b.marginPct - a.marginPct)
+                        .slice(0, 10);
+                },
+
+                get filteredPosProducts() {
+                    return this.inventory.filter(item => {
+                        const matchesSearch = item.name.toLowerCase().includes(this.posSearch.toLowerCase()) || item.code.toString().includes(this.posSearch.trim());
+                        const matchesCategory = this.posCategory === '' || item.category === this.posCategory;
+                        return matchesSearch && matchesCategory;
+                    });
+                },
+
+                get filteredInventory() {
+                    return this.inventory.filter(item => {
+                        const query = this.inventorySearch.toLowerCase().trim();
+                        return item.name.toLowerCase().includes(query) || 
+                               item.code.toString().includes(query) ||
+                               item.category.toLowerCase().includes(query);
+                    });
+                },
+
+                addToCart(product) {
+                    if (product.stock <= 0) {
+                        this.showNotification('Producto sin stock disponible');
+                        return;
+                    }
+                    const existing = this.cart.find(i => i.id === product.id);
+                    if (existing) {
+                        if (existing.qty < product.stock) {
+                            existing.qty++;
+                        } else {
+                            this.showNotification('Stock máximo alcanzado en carrito');
+                        }
+                    } else {
+                        this.cart.push({
+                            id: product.id,
+                            code: product.code,
+                            name: product.name,
+                            price: product.price,
+                            qty: 1,
+                            maxStock: product.stock
+                        });
+                    }
+                },
+
+                updateCartQty(index, change) {
+                    const item = this.cart[index];
+                    const currentQty = parseInt(item.qty) || 0;
+                    const newQty = currentQty + change;
+                    if (newQty <= 0) {
+                        this.removeFromCart(index);
+                    } else if (newQty <= item.maxStock) {
+                        item.qty = newQty;
+                    } else {
+                        this.showNotification('Stock insuficiente (' + item.maxStock + ' máx)');
+                    }
+                },
+
+                validateManualQty(index) {
+                    const item = this.cart[index];
+                    if (item.qty > item.maxStock) {
+                        item.qty = item.maxStock;
+                        this.showNotification('Stock máximo disponible es ' + item.maxStock);
+                    }
+                },
+
+                finalizeManualQty(index) {
+                    const item = this.cart[index];
+                    if (item.qty === null || item.qty === undefined || item.qty === '' || item.qty < 1) {
+                        item.qty = 1;
+                    }
+                },
+
+                removeFromCart(index) {
+                    this.cart.splice(index, 1);
+                    this.showNotification('Artículo removido del carrito');
+                },
+
+                clearCart() {
+                    this.cart = [];
+                    this.showNotification('Carrito vaciado');
+                },
+
+                get cartTotal() {
+                    return this.cart.reduce((sum, item) => sum + (item.price * (parseInt(item.qty) || 0)), 0);
+                },
+
+                openProductModal() {
+                    this.isEditing = false;
+                    const maxCodeNum = this.inventory.reduce((max, item) => {
+                        const num = parseInt(item.code);
+                        return !isNaN(num) && num > max ? num : max;
+                    }, 0);
+                    
+                    this.productForm = { 
+                        id: null, 
+                        code: (maxCodeNum + 1).toString(), 
+                        name: '', 
+                        category: '', 
+                        buyPrice: 0, 
+                        price: 0, 
+                        stock: 0 
+                    };
+                    this.isProductModalOpen = true;
+                },
+
+                editProduct(item) {
+                    this.isEditing = true;
+                    this.productForm = { ...item };
+                    this.isProductModalOpen = true;
+                },
+
+                closeProductModal() {
+                    this.isProductModalOpen = false;
+                },
+
+                saveProduct() {
+                    if (this.isEditing) {
+                        const index = this.inventory.findIndex(i => i.id === this.productForm.id);
+                        if (index !== -1) {
+                            this.inventory[index] = { ...this.productForm };
+                        }
+                        this.showNotification('Producto actualizado correctamente');
+                    } else {
+                        const newId = this.inventory.length > 0 ? Math.max(...this.inventory.map(i => i.id)) + 1 : 1;
+                        this.inventory.push({
+                            ...this.productForm,
+                            id: newId
+                        });
+                        this.showNotification('Producto agregado al inventario con código ' + this.productForm.code);
+                    }
+                    this.closeProductModal();
+                },
+
+                promptDeleteProduct(item) {
+                    this.itemToDelete = item;
+                    this.isDeleteModalOpen = true;
+                },
+
+                confirmDeleteProduct() {
+                    if (this.itemToDelete) {
+                        const id = this.itemToDelete.id;
+                        this.inventory = this.inventory.filter(i => i.id !== id);
+                        this.cart = this.cart.filter(i => i.id !== id);
+                        this.showNotification('Producto eliminado del inventario');
+                        this.isDeleteModalOpen = false;
+                        this.itemToDelete = null;
+                    }
+                },
+
+                openCheckout() {
+                    this.cashReceived = this.cartTotal;
+                    this.isCheckoutOpen = true;
+                },
+
+                completeSale() {
+                    const saleId = 'V-' + Math.floor(100000 + Math.random() * 900000);
+                    const newSale = {
+                        id: saleId,
+                        date: new Date().toLocaleString(),
+                        paymentMethod: this.paymentMethod,
+                        itemsCount: this.cart.reduce((sum, i) => sum + (parseInt(i.qty) || 0), 0),
+                        items: [...this.cart],
+                        total: this.cartTotal
+                    };
+
+                    this.cart.forEach(cartItem => {
+                        const invItem = this.inventory.find(i => i.id === cartItem.id);
+                        if (invItem) {
+                            invItem.stock -= (parseInt(cartItem.qty) || 0);
+                        }
+                    });
+
+                    this.sales.unshift(newSale);
+                    this.cart = [];
+                    this.isCheckoutOpen = false;
+                    this.showNotification('¡Venta completada con éxito! (' + saleId + ')');
+                },
+
+                viewSaleDetail(sale) {
+                    this.selectedSale = sale;
+                    this.isSaleDetailOpen = true;
+                },
+
+                promptReturnProduct(item, index) {
+                    this.returnMode = 'item';
+                    this.itemToReturn = item;
+                    this.itemToReturnIndex = index;
+                    this.returnAuthPassword = '';
+                    this.returnPasswordError = false;
+                    this.isReturnAuthOpen = true;
+                },
+
+                promptReturnAllProducts() {
+                    this.returnMode = 'all';
+                    this.itemToReturn = null;
+                    this.itemToReturnIndex = null;
+                    this.returnAuthPassword = '';
+                    this.returnPasswordError = false;
+                    this.isReturnAuthOpen = true;
+                },
+
+                confirmReturnWithPassword() {
+                    if (this.returnAuthPassword !== '1357') {
+                        this.returnPasswordError = true;
+                        return;
+                    }
+
+                    if (!this.selectedSale) return;
+
+                    if (this.returnMode === 'item' && this.itemToReturn) {
+                        const invItem = this.inventory.find(i => i.id === this.itemToReturn.id);
+                        if (invItem) {
+                            invItem.stock += (parseInt(this.itemToReturn.qty) || 0);
+                        }
+
+                        const itemQty = parseInt(this.itemToReturn.qty) || 0;
+                        const itemSubtotal = this.itemToReturn.price * itemQty;
+                        
+                        this.selectedSale.items.splice(this.itemToReturnIndex, 1);
+                        this.selectedSale.itemsCount -= itemQty;
+                        this.selectedSale.total -= itemSubtotal;
+
+                        this.showNotification('Producto devuelto al inventario correctamente');
+
+                        if (this.selectedSale.items.length === 0) {
+                            this.sales = this.sales.filter(s => s.id !== this.selectedSale.id);
+                            this.isSaleDetailOpen = false;
+                        }
+                    } else if (this.returnMode === 'all') {
+                        this.selectedSale.items.forEach(cartItem => {
+                            const invItem = this.inventory.find(i => i.id === cartItem.id);
+                            if (invItem) {
+                                invItem.stock += (parseInt(cartItem.qty) || 0);
+                            }
+                        });
+
+                        this.sales = this.sales.filter(s => s.id !== this.selectedSale.id);
+                        this.showNotification('Venta anulada. Todos los productos reingresaron al inventario.');
+                        this.isSaleDetailOpen = false;
+                    }
+
+                    this.isReturnAuthOpen = false;
+                    this.returnAuthPassword = '';
+                    this.returnPasswordError = false;
+                },
+
+                exportToExcel() {
+                    const data = this.inventory.map((item, idx) => ({
+                        "N.º": idx + 1,
+                        "Código": item.code,
+                        "Producto": item.name,
+                        "Categoría": item.category,
+                        "Cantidad": item.stock,
+                        "Compra Unit.": item.buyPrice > 0 ? item.buyPrice : 0,
+                        "Inversión": item.buyPrice > 0 ? item.buyPrice * item.stock : 0,
+                        "Venta Unit.": item.price > 0 ? item.price : 0,
+                        "Venta Total": item.price > 0 ? item.price * item.stock : 0,
+                        "Ganancia": item.buyPrice > 0 && item.price > 0 ? (item.price - item.buyPrice) * item.stock : 0
+                    }));
+
+                    const ws = XLSX.utils.json_to_sheet(data);
+                    const wb = XLSX.utils.book_new();
+                    XLSX.utils.book_append_sheet(wb, ws, "Inventario FerroMaster");
+                    XLSX.writeFile(wb, "FerroMaster_Inventario_60_Productos.xlsx");
+                    this.showNotification("Archivo Excel descargado exitosamente");
+                },
+
+                exportToPDF() {
+                    const { jsPDF } = window.jspdf;
+                    const doc = new jsPDF('p', 'mm', 'a4');
+                    const pageWidth = doc.internal.pageSize.width;
+
+                    doc.setFillColor(15, 23, 42);
+                    doc.rect(0, 0, pageWidth, 28, 'F');
+
+                    doc.setTextColor(255, 255, 255);
+                    doc.setFont("helvetica", "bold");
+                    doc.setFontSize(16);
+                    doc.text("Máster", 12, 18);
+                    
+                    const masterWidth = doc.getTextWidth("Máster ");
+                    doc.setTextColor(234, 179, 8);
+                    doc.setFont("helvetica", "bolditalic");
+                    doc.text("Ferro", 12 + masterWidth, 18);
+
+                    doc.setTextColor(203, 213, 225);
+                    doc.setFont("helvetica", "normal");
+                    doc.setFontSize(9);
+                    doc.text("Inventario Oficial - 60 Productos", pageWidth - 12, 15, { align: 'right' });
+                    doc.text("Fecha: " + new Date().toLocaleDateString(), pageWidth - 12, 21, { align: 'right' });
+
+                    const tableColumns = ["N.º", "Código", "Producto", "Categoría", "Cant.", "Compra", "Inversión", "Venta", "Venta Tot.", "Ganancia"];
+                    
+                    const tableRows = this.inventory.map((item, idx) => [
+                        idx + 1,
+                        item.code,
+                        item.name,
+                        item.category,
+                        item.stock,
+                        item.buyPrice > 0 ? '$' + item.buyPrice.toFixed(2) : 'Pend.',
+                        item.buyPrice > 0 ? '$' + (item.buyPrice * item.stock).toFixed(2) : '—',
+                        item.price > 0 ? '$' + item.price.toFixed(2) : 'Pend.',
+                        item.price > 0 ? '$' + (item.price * item.stock).toFixed(2) : '—',
+                        item.buyPrice > 0 && item.price > 0 ? '$' + ((item.price - item.buyPrice) * item.stock).toFixed(2) : '—'
+                    ]);
+
+                    const totalInvSum = this.inventory.reduce((sum, item) => sum + (item.buyPrice > 0 ? item.buyPrice * item.stock : 0), 0);
+                    const totalSalesSum = this.inventory.reduce((sum, item) => sum + (item.price > 0 ? item.price * item.stock : 0), 0);
+                    const totalProfitSum = this.inventory.reduce((sum, item) => sum + (item.buyPrice > 0 && item.price > 0 ? (item.price - item.buyPrice) * item.stock : 0), 0);
+                    const totalUnitsSum = this.inventory.reduce((sum, item) => sum + item.stock, 0);
+
+                    const tableFooter = [[
+                        { content: 'TOTALES', colSpan: 4, styles: { halign: 'right', fontStyle: 'bold' } },
+                        { content: totalUnitsSum.toString(), styles: { halign: 'center', fontStyle: 'bold' } },
+                        { content: '—', styles: { halign: 'center' } },
+                        { content: '$' + totalInvSum.toFixed(2), styles: { halign: 'right', fontStyle: 'bold' } },
+                        { content: '—', styles: { halign: 'center' } },
+                        { content: '$' + totalSalesSum.toFixed(2), styles: { halign: 'right', fontStyle: 'bold' } },
+                        { content: '$' + totalProfitSum.toFixed(2), styles: { halign: 'right', fontStyle: 'bold' } }
+                    ]];
+
+                    doc.autoTable({
+                        head: [tableColumns],
+                        body: tableRows,
+                        foot: tableFooter,
+                        startY: 33,
+                        margin: { left: 8, right: 8, top: 33, bottom: 12 },
+                        theme: 'striped',
+                        headStyles: { fillColor: [15, 23, 42], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 7.5 },
+                        footStyles: { fillColor: [30, 41, 59], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 7.5 },
+                        styles: { fontSize: 7, cellPadding: 1.5, overflow: 'linebreak' },
+                        columnStyles: {
+                            0: { halign: 'center' },
+                            1: { halign: 'center', fontStyle: 'bold' },
+                            2: { cellWidth: 'auto' },
+                            3: { cellWidth: 'auto' },
+                            4: { halign: 'center' },
+                            5: { halign: 'right' },
+                            6: { halign: 'right', fontStyle: 'bold' },
+                            7: { halign: 'right' },
+                            8: { halign: 'right' },
+                            9: { halign: 'right' }
+                        }
+                    });
+
+                    doc.save("FerroMaster_Inventario_60_Productos.pdf");
+                    this.showNotification("PDF descargado exitosamente");
+                }
+            }
+        }
+    </script>
+</body>
+</html>
