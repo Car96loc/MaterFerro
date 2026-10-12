@@ -37,6 +37,7 @@ function client(store = new Map()) {
         }
     };
     const source = fs.readFileSync(__dirname + '/firebase-sync.js', 'utf8').replace(/^import .*;\r?\n/gm, '');
+    vm.runInNewContext(fs.readFileSync(__dirname + '/sales-report.js', 'utf8').replace(/^export /gm, ''), context);
     vm.runInNewContext(source, context);
     const api = window.ferroFirebase;
     api.initAuth(() => {}, () => {});
@@ -79,10 +80,17 @@ test('empty inventory is delivered and never recreated; sync includes both colle
 });
 
 test('sale and stock are atomic; insufficient stock and duplicate sale do not change records', async () => {
-    const c = client(new Map([[key('inventory', 'p1'), { stock: 3 }]]));
+    const c = client(new Map([[key('inventory', 'p1'), { stock: 3, code: '1', name: 'Martillo', category: 'Herramientas', buyPrice: 4 }]]));
     await c.login();
     await c.api.completeSale(sale('v1'));
     assert.equal(c.store.get(key('inventory', 'p1')).stock, 1);
+    const recorded = c.store.get(key('sales', 'v1'));
+    assert.equal(recorded.totalCost, 8);
+    assert.equal(recorded.grossProfit, 12);
+    assert.equal(recorded.items[0].buyPrice, 4);
+    assert.equal(recorded.items[0].stockBefore, 3);
+    c.store.get(key('inventory', 'p1')).buyPrice = 99;
+    assert.equal(recorded.grossProfit, 12);
     await assert.rejects(c.api.completeSale(sale('v2')));
     await assert.rejects(c.api.completeSale(sale('v1')));
     assert.equal(c.store.get(key('inventory', 'p1')).stock, 1);
@@ -107,4 +115,20 @@ test('inline application code parses', () => {
     for (const script of html.matchAll(/<script>([\s\S]*?)<\/script>/g)) new vm.Script(script[1]);
     assert.ok(!html.includes('demo-api-key'));
     assert.ok(!html.includes('cloudItems.length === 0'));
+});
+
+test('partial return recalculates stored cost and profit using historical prices', async () => {
+    const historical = { id: 'v1', total: 30, itemsCount: 3, items: [
+        { id: 'p1', qty: 2, price: 10, buyPrice: 4, costKnown: true },
+        { id: 'p2', qty: 1, price: 10, buyPrice: 3, costKnown: true }
+    ] };
+    const c = client(new Map([[key('sales', 'v1'), historical], [key('inventory', 'p1'), { stock: 1, buyPrice: 99 }]]));
+    await c.login();
+    await c.api.returnSale('v1', 'p1');
+    const result = c.store.get(key('sales', 'v1'));
+    assert.equal(result.total, 10);
+    assert.equal(result.totalCost, 3);
+    assert.equal(result.grossProfit, 7);
+    assert.equal(result.itemsCount, 1);
+    assert.equal(c.store.get(key('inventory', 'p1')).stock, 3);
 });

@@ -1,2 +1,4 @@
 firebase-debug.log
 .firebase/
+.recovery/
+recover-products.cjs

@@ -1,6 +1,9 @@
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js';
 import { getAuth, onAuthStateChanged, sendSignInLinkToEmail, isSignInWithEmailLink, signInWithEmailLink, signOut } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js';
 import { getFirestore, collection, doc, setDoc, deleteDoc, onSnapshot, runTransaction } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js';
+import { businessDay, parseSaleDate, saleTotals, itemTotals, salesReport, displaySaleDate } from './sales-report.js';
+
+window.ferroReports = { businessDay, saleTotals, itemTotals, salesReport, displaySaleDate };
 
 const app = initializeApp({
     apiKey: 'AIzaSyBJRvyFuIrqrA4QrEqvBL6mf5vFMFmGu_Y',
@@ -44,7 +47,7 @@ function start(kind) {
     listeners.set(kind, onSnapshot(collection(db, ...path, kind), { includeMetadataChanges: true }, snapshot => {
         snapshots.set(kind, snapshot.metadata);
         let items = snapshot.docs.map(d => ({ ...d.data(), id: d.id }));
-        if (kind === 'sales') items.sort((a, b) => String(b.date).localeCompare(String(a.date)));
+        if (kind === 'sales') items.sort((a, b) => (parseSaleDate(b.date)?.getTime() || 0) - (parseSaleDate(a.date)?.getTime() || 0));
         subscriptions.get(kind)(items);
         status();
     }, error => { failedSubscriptions.add(kind); fail(error); }));
@@ -107,15 +110,22 @@ window.ferroFirebase = {
             const saleRef = ref('sales', sale.id);
             if ((await transaction.get(saleRef)).exists()) throw new Error('La venta ya está registrada.');
             const products = [];
+            const recordedItems = [];
             for (const item of sale.items) {
                 const productRef = ref('inventory', item.id);
                 const snapshot = await transaction.get(productRef);
                 const qty = Number(item.qty);
                 if (!snapshot.exists() || !Number.isInteger(qty) || qty <= 0 || snapshot.data().stock < qty) throw new Error('Existencias insuficientes para ' + item.name);
                 products.push({ productRef, stock: snapshot.data().stock - qty });
+                const product = snapshot.data();
+                recordedItems.push({ ...item, code: product.code, name: product.name, category: product.category,
+                    buyPrice: Number(product.buyPrice || 0), costKnown: Number(product.buyPrice) > 0 || Number(item.price) === 0,
+                    stockBefore: Number(product.stock), stockAfter: Number(product.stock) - qty });
             }
             for (const product of products) transaction.update(product.productRef, { stock: product.stock });
-            transaction.set(saleRef, sale);
+            const recordedSale = { ...sale, items: recordedItems, reportVersion: 1 };
+            const totals = saleTotals(recordedSale);
+            transaction.set(saleRef, { ...recordedSale, totalCost: totals.cost, grossProfit: totals.profit });
         }));
     },
     returnSale(id, itemId) {
@@ -135,7 +145,11 @@ window.ferroFirebase = {
             for (const product of products) transaction.update(product.productRef, { stock: product.stock });
             const items = sale.items.filter(item => !returned.includes(item));
             if (!items.length) transaction.delete(saleRef);
-            else transaction.update(saleRef, { items, itemsCount: items.reduce((sum, item) => sum + Number(item.qty), 0), total: items.reduce((sum, item) => sum + Number(item.qty) * Number(item.price), 0) });
+            else {
+                const total = items.reduce((sum, item) => sum + Number(item.qty) * Number(item.price), 0);
+                const totals = saleTotals({ items, total });
+                transaction.update(saleRef, { items, itemsCount: items.reduce((sum, item) => sum + Number(item.qty), 0), total, totalCost: totals.cost, grossProfit: totals.profit });
+            }
         }));
     }
 };

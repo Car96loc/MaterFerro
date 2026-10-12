@@ -25,7 +25,7 @@ Sales and returns use Firestore transactions to update stock and sales together.
 
 ## Validation
 
-Run `node --test firebase-sync.test.cjs`.
+Run `node --test firebase-sync.test.cjs sales-report.test.cjs`.
 The tests mock the Firebase SDK; a two-device sign-in check remains necessary
 to verify the complete browser and email delivery flow.
 
@@ -38,3 +38,14 @@ firebase deploy --only firestore:rules --project ferromaster-pos --account carzu
 Firebase Authentication must have email-link sign-in enabled and
 `car96loc.github.io` in its authorized domains. These settings and the rules
 were applied during setup.
+
+## Sales reports
+
+The sales history filters by calendar day, Monday-to-Sunday week, month, year,
+or all history. Calendar boundaries use America/Bogota. Summaries show revenue,
+product cost and gross profit; overhead expenses are not included.
+Each new sale stores product cost, category and stock before/after checkout.
+Historical costs never use the current inventory price. Old records without
+costs display an unavailable cost/profit rather than an invented value.
+Returns recalculate amounts for the remaining items. Excel exports include
+the selected period's summary and individual product rows.

@@ -314,49 +314,64 @@
             </div>
 
             <!-- TAB: HISTORIAL DE VENTAS -->
-            <div x-show="activeTab === 'sales'" class="h-full flex flex-col bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-                <div class="p-4 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
-                    <h3 class="font-bold text-slate-800 flex items-center space-x-2">
-                        <i class="fa-solid fa-file-invoice-dollar text-amber-500"></i>
-                        <span>Registro de Transacciones</span>
-                    </h3>
-                    <span class="text-xs bg-slate-200 text-slate-700 px-3 py-1 rounded-lg font-medium" x-text="'Total Ventas: ' + sales.length"></span>
+            <div x-show="activeTab === 'sales'" class="h-full flex flex-col bg-white overflow-y-auto min-h-0">
+                <div class="p-4 border-b border-slate-200 space-y-4">
+                    <div class="flex flex-wrap gap-3 items-center justify-between">
+                        <h3 class="font-bold text-slate-800"><i class="fa-solid fa-file-invoice-dollar mr-2 text-emerald-600"></i>Ventas y ganancias</h3>
+                        <button @click="exportSalesReport()" title="Descargar reporte de ventas" class="p-2 text-emerald-700 hover:bg-emerald-50 rounded" aria-label="Descargar reporte de ventas"><i class="fa-solid fa-file-excel"></i></button>
+                    </div>
+                    <div class="flex flex-wrap items-end gap-3">
+                        <div role="group" aria-label="Periodo de ventas" class="flex flex-wrap border border-slate-300 rounded overflow-hidden">
+                            <template x-for="option in salesPeriods" :key="option.value">
+                                <button @click="salesPeriod = option.value" :aria-pressed="salesPeriod === option.value" :class="salesPeriod === option.value ? 'bg-emerald-700 text-white' : 'text-slate-700 hover:bg-slate-100'" class="px-3 py-2 text-sm" x-text="option.label"></button>
+                            </template>
+                        </div>
+                        <label x-show="salesPeriod !== 'all'" class="text-xs text-slate-600">Fecha de referencia
+                            <input type="date" x-model="salesAnchor" class="block border border-slate-300 rounded px-2 py-2 text-sm text-slate-800">
+                        </label>
+                        <span class="text-xs text-slate-500 pb-2" x-text="salesReport.range?.label || 'Selecciona una fecha'"></span>
+                    </div>
+                    <dl class="grid grid-cols-2 lg:grid-cols-4 gap-x-4 gap-y-3">
+                        <div><dt class="text-xs text-slate-500">Ventas</dt><dd class="text-lg font-bold" x-text="salesReport.sales.length"></dd></div>
+                        <div><dt class="text-xs text-slate-500">Total vendido</dt><dd class="text-lg font-bold text-slate-800" x-text="formatMoney(salesReport.revenue)"></dd></div>
+                        <div><dt class="text-xs text-slate-500">Costo de productos</dt><dd class="text-lg font-bold" x-text="formatReportMoney(salesReport.cost)"></dd></div>
+                        <div><dt class="text-xs text-slate-500">Ganancia bruta</dt><dd class="text-lg font-bold" :class="salesReport.profit < 0 ? 'text-rose-700' : 'text-emerald-700'" x-text="formatReportMoney(salesReport.profit)"></dd></div>
+                    </dl>
+                    <p x-show="salesReport.missingSales > 0" class="text-xs text-amber-800" x-text="salesReport.missingSales + ' venta(s) sin costo registrado. Costo y ganancia pendientes.'"></p>
+                    <p x-show="salesReport.invalidDates > 0" class="text-xs text-amber-800" x-text="salesReport.invalidDates + ' venta(s) sin fecha valida, visibles en Todo.'"></p>
                 </div>
-                <div class="flex-1 overflow-auto">
-                    <table class="w-full text-left border-collapse min-w-[650px]">
-                        <thead>
-                            <tr class="bg-slate-100 text-slate-600 text-xs uppercase tracking-wider border-b border-slate-200 sticky top-0 z-10">
-                                <th class="p-4 font-semibold">ID Venta</th>
-                                <th class="p-4 font-semibold">Fecha / Hora</th>
-                                <th class="p-4 font-semibold">Método Pago</th>
-                                <th class="p-4 font-semibold">Artículos</th>
-                                <th class="p-4 font-semibold">Total</th>
-                                <th class="p-4 font-semibold text-center">Acciones</th>
-                            </tr>
+                <div x-show="salesPeriod !== 'day' && salesReport.days.length > 0" class="p-4 border-b border-slate-200">
+                    <h4 class="font-semibold text-sm mb-2">Resumen por día</h4>
+                    <div class="overflow-x-auto max-h-52 overflow-y-auto">
+                        <table class="w-full text-xs text-left min-w-[480px]">
+                            <thead class="bg-slate-50 sticky top-0"><tr><th class="p-2">Fecha</th><th class="p-2 text-right">Ventas</th><th class="p-2 text-right">Vendido</th><th class="p-2 text-right">Costo</th><th class="p-2 text-right">Ganancia bruta</th></tr></thead>
+                            <tbody><template x-for="row in salesReport.days" :key="row.day"><tr class="border-b border-slate-100">
+                                <td class="p-2"><button @click="salesAnchor = row.day; salesPeriod = 'day'" :disabled="row.day === 'Sin fecha'" class="text-emerald-700 underline" x-text="row.day"></button></td>
+                                <td class="p-2 text-right" x-text="row.count"></td><td class="p-2 text-right" x-text="formatMoney(row.revenue)"></td>
+                                <td class="p-2 text-right" x-text="formatReportMoney(row.cost)"></td><td class="p-2 text-right font-semibold" x-text="formatReportMoney(row.profit)"></td>
+                            </tr></template></tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="overflow-x-auto flex-1 min-h-48">
+                    <table class="w-full text-left border-collapse min-w-[850px]">
+                        <thead class="bg-slate-100 text-slate-600 text-xs border-b border-slate-200">
+                            <tr><th class="p-3">Venta</th><th class="p-3">Fecha / Hora</th><th class="p-3">Pago</th><th class="p-3 text-right">Unidades</th><th class="p-3 text-right">Vendido</th><th class="p-3 text-right">Costo</th><th class="p-3 text-right">Ganancia bruta</th><th class="p-3 text-center">Detalle</th></tr>
                         </thead>
                         <tbody class="divide-y divide-slate-200 text-sm">
-                            <template x-for="sale in sales" :key="sale.id">
-                                <tr class="hover:bg-slate-50 transition">
-                                    <td class="p-4 font-mono font-bold text-slate-800" x-text="sale.id"></td>
-                                    <td class="p-4 text-slate-600 text-xs" x-text="sale.date"></td>
-                                    <td class="p-4">
-                                        <span class="text-xs bg-slate-100 text-slate-700 px-2.5 py-1 rounded-full font-medium uppercase" x-text="sale.paymentMethod"></span>
-                                    </td>
-                                    <td class="p-4 text-slate-600" x-text="sale.itemsCount + ' productos'"></td>
-                                    <td class="p-4 font-bold text-emerald-600" x-text="formatMoney(sale.total)"></td>
-                                    <td class="p-4 text-center">
-                                        <button @click="viewSaleDetail(sale)" title="Ver Detalle y Devolución" class="w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 transition inline-flex items-center justify-center">
-                                            <i class="fa-solid fa-eye text-xs"></i>
-                                        </button>
-                                    </td>
+                            <template x-for="sale in salesReport.sales" :key="sale.id">
+                                <tr class="hover:bg-slate-50">
+                                    <td class="p-3 font-mono text-xs max-w-40 break-all" x-text="sale.id"></td>
+                                    <td class="p-3 text-xs" x-text="displaySaleDate(sale.date)"></td>
+                                    <td class="p-3 text-xs uppercase" x-text="sale.paymentMethod"></td>
+                                    <td class="p-3 text-right" x-text="sale.itemsCount"></td>
+                                    <td class="p-3 text-right font-semibold" x-text="formatMoney(sale.total)"></td>
+                                    <td class="p-3 text-right" x-text="formatReportMoney(saleTotals(sale).cost)"></td>
+                                    <td class="p-3 text-right font-semibold" x-text="formatReportMoney(saleTotals(sale).profit)"></td>
+                                    <td class="p-3 text-center"><button @click="viewSaleDetail(sale)" title="Ver productos y ganancias" aria-label="Ver productos y ganancias" class="w-8 h-8 rounded hover:bg-slate-200"><i class="fa-solid fa-eye"></i></button></td>
                                 </tr>
                             </template>
-                            <tr x-show="sales.length === 0">
-                                <td colspan="6" class="py-12 text-center text-slate-400">
-                                    <i class="fa-solid fa-receipt text-4xl mb-2"></i>
-                                    <p class="text-sm">Aún no se han registrado ventas.</p>
-                                </td>
-                            </tr>
+                            <tr x-show="salesReport.sales.length === 0"><td colspan="8" class="py-12 text-center text-slate-400">No hay ventas en este periodo.</td></tr>
                         </tbody>
                     </table>
                 </div>
@@ -605,57 +620,46 @@
     </div>
 
     <div x-show="isSaleDetailOpen" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-3 md:p-4" style="display: none;">
-        <div @click.away="isSaleDetailOpen = false" class="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden border border-slate-200 max-h-[90vh] flex flex-col">
-            <div class="p-4 bg-slate-900 text-white flex justify-between items-center shrink-0">
-                <h3 class="font-bold text-base" x-text="'Detalle de Venta #' + (selectedSale ? selectedSale.id : '')"></h3>
-                <button @click="isSaleDetailOpen = false" class="text-slate-400 hover:text-white transition"><i class="fa-solid fa-xmark text-lg"></i></button>
+        <div @click.away="isSaleDetailOpen = false" class="bg-white rounded-lg shadow-xl w-full max-w-6xl overflow-hidden border border-slate-200 max-h-[90vh] flex flex-col">
+            <div class="p-4 bg-slate-900 text-white flex justify-between items-center gap-3 shrink-0">
+                <h3 class="font-bold text-sm break-all" x-text="'Detalle de venta ' + (selectedSale?.id || '')"></h3>
+                <button @click="isSaleDetailOpen = false" title="Cerrar detalle" aria-label="Cerrar detalle" class="w-8 h-8 shrink-0 text-slate-300"><i class="fa-solid fa-xmark"></i></button>
             </div>
-            <div class="p-4 md:p-6 space-y-4 overflow-y-auto flex-1" x-show="selectedSale">
-                <div class="text-xs text-slate-500 flex justify-between">
-                    <span>Fecha: <strong class="text-slate-700" x-text="selectedSale?.date"></strong></span>
-                    <span>Método: <strong class="text-slate-700 uppercase" x-text="selectedSale?.paymentMethod"></strong></span>
+            <div class="p-4 space-y-4 overflow-y-auto flex-1" x-show="selectedSale">
+                <div class="text-xs text-slate-500 flex flex-wrap justify-between gap-2">
+                    <span>Fecha: <strong class="text-slate-700" x-text="displaySaleDate(selectedSale?.date)"></strong></span>
+                    <span>Pago: <strong class="text-slate-700 uppercase" x-text="selectedSale?.paymentMethod"></strong></span>
                 </div>
-                
-                <div class="border border-slate-200 rounded-xl overflow-hidden max-h-52 overflow-y-auto">
-                    <table class="w-full text-xs text-left">
-                        <thead class="bg-slate-50 border-b border-slate-200 text-slate-600 sticky top-0">
-                            <tr>
-                                <th class="p-2">Ítem</th>
-                                <th class="p-2 text-center">Cant</th>
-                                <th class="p-2 text-right">Subtotal</th>
-                                <th class="p-2 text-center">Devolver</th>
-                            </tr>
+                <div class="overflow-auto max-h-80">
+                    <table class="w-full text-xs text-left min-w-[1000px]">
+                        <thead class="bg-slate-50 border-b border-slate-200 sticky top-0">
+                            <tr><th class="p-2">Producto / Código</th><th class="p-2">Categoría</th><th class="p-2 text-right">Cantidad</th><th class="p-2 text-right">Costo unit.</th><th class="p-2 text-right">Precio unit.</th><th class="p-2 text-right">Costo total</th><th class="p-2 text-right">Vendido</th><th class="p-2 text-right">Ganancia bruta</th><th class="p-2 text-right">Stock antes / después</th><th class="p-2">Devolver</th></tr>
                         </thead>
                         <tbody class="divide-y divide-slate-100">
-                            <template x-for="(item, idx) in (selectedSale ? selectedSale.items : [])" :key="item.id + '-' + idx">
+                            <template x-for="(item, idx) in (selectedSale?.items || [])" :key="item.id + '-' + idx">
                                 <tr>
-                                    <td class="p-2 font-medium text-slate-800" x-text="'[' + item.code + '] ' + item.name"></td>
-                                    <td class="p-2 text-center font-bold" x-text="item.qty"></td>
-                                    <td class="p-2 text-right font-bold text-slate-900" x-text="formatMoney(item.price * item.qty)"></td>
-                                    <td class="p-2 text-center">
-                                        <button @click="promptReturnProduct(item, idx)" title="Devolver solo este producto al inventario" class="px-2 py-1 bg-amber-100 hover:bg-amber-500 text-amber-800 hover:text-slate-900 font-bold rounded text-[10px] transition">
-                                            Devolver
-                                        </button>
-                                    </td>
+                                    <td class="p-2 font-medium"><span x-text="item.name"></span><span class="block text-slate-500" x-text="item.code"></span></td>
+                                    <td class="p-2" x-text="item.category || 'No registrada'"></td>
+                                    <td class="p-2 text-right" x-text="item.qty"></td>
+                                    <td class="p-2 text-right" x-text="itemTotals(item).known ? formatUnitMoney(item.buyPrice) : 'No registrado'"></td>
+                                    <td class="p-2 text-right" x-text="formatUnitMoney(item.price)"></td>
+                                    <td class="p-2 text-right" x-text="formatReportMoney(itemTotals(item).cost)"></td>
+                                    <td class="p-2 text-right" x-text="formatMoney(itemTotals(item).revenue)"></td>
+                                    <td class="p-2 text-right font-semibold" x-text="formatReportMoney(itemTotals(item).profit)"></td>
+                                    <td class="p-2 text-right" x-text="item.stockBefore == null ? 'No registrado' : item.stockBefore + ' / ' + item.stockAfter"></td>
+                                    <td class="p-2 text-center"><button @click="promptReturnProduct(item, idx)" title="Devolver este producto" aria-label="Devolver este producto" class="w-8 h-8 text-amber-800 hover:bg-amber-100 rounded"><i class="fa-solid fa-rotate-left"></i></button></td>
                                 </tr>
                             </template>
                         </tbody>
                     </table>
                 </div>
-
-                <div class="bg-slate-50 p-3 rounded-xl space-y-1 text-sm border border-slate-200">
-                    <div class="flex justify-between font-bold text-slate-900 text-base">
-                        <span>Total Pagado:</span>
-                        <span class="text-emerald-600" x-text="formatMoney(selectedSale?.total)"></span>
-                    </div>
-                </div>
-
-                <div class="pt-2 border-t border-slate-200 flex space-x-2">
-                    <button @click="promptReturnAllProducts()" class="w-full py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold transition flex items-center justify-center space-x-2">
-                        <i class="fa-solid fa-rotate-left"></i>
-                        <span>Anular y Devolver Todos al Inventario</span>
-                    </button>
-                </div>
+                <dl class="grid grid-cols-1 sm:grid-cols-3 gap-3 py-3 border-t border-b border-slate-200">
+                    <div><dt class="text-xs text-slate-500">Total vendido</dt><dd class="font-bold" x-text="formatMoney(selectedSale?.total)"></dd></div>
+                    <div><dt class="text-xs text-slate-500">Costo de productos</dt><dd class="font-bold" x-text="formatReportMoney(saleTotals(selectedSale).cost)"></dd></div>
+                    <div><dt class="text-xs text-slate-500">Ganancia bruta</dt><dd class="font-bold text-emerald-700" x-text="formatReportMoney(saleTotals(selectedSale).profit)"></dd></div>
+                </dl>
+                <p x-show="!saleTotals(selectedSale).known" class="text-xs text-amber-800">Esta venta no tiene todos los costos registrados.</p>
+                <button @click="promptReturnAllProducts()" class="w-full py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded text-xs font-bold"><i class="fa-solid fa-rotate-left mr-2"></i>Anular y devolver al inventario</button>
             </div>
         </div>
     </div>
@@ -808,6 +812,13 @@
 
                 cart: [],
                 sales: [],
+                salesPeriod: 'day',
+                salesAnchor: window.ferroReports.businessDay(),
+                salesPeriods: [
+                    { value: 'day', label: 'Día' }, { value: 'week', label: 'Semana' },
+                    { value: 'month', label: 'Mes' }, { value: 'year', label: 'Año' },
+                    { value: 'all', label: 'Todo' }
+                ],
 
                 productForm: {
                     id: null,
@@ -871,6 +882,38 @@
 
                 formatMoney(amount) {
                     return '$' + Number(amount || 0).toFixed(2);
+                },
+
+                formatReportMoney(amount) {
+                    return amount == null ? 'Sin costo registrado' : this.formatMoney(amount);
+                },
+
+                formatUnitMoney(amount) {
+                    return '$' + Number(amount || 0).toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 4 });
+                },
+
+                displaySaleDate(value) { return window.ferroReports.displaySaleDate(value); },
+                saleTotals(sale) { return window.ferroReports.saleTotals(sale); },
+                itemTotals(item) { return window.ferroReports.itemTotals(item); },
+                get salesReport() { return window.ferroReports.salesReport(this.sales, this.salesPeriod, this.salesAnchor); },
+
+                exportSalesReport() {
+                    const rows = this.salesReport.sales.flatMap(sale => (sale.items || []).map(item => {
+                        const totals = this.itemTotals(item);
+                        return { Venta: sale.id, Fecha: this.displaySaleDate(sale.date), Pago: sale.paymentMethod,
+                            Codigo: item.code, Producto: item.name, Categoria: item.category || '', Cantidad: item.qty,
+                            'Costo unitario': totals.known ? Number(item.buyPrice) : '', 'Precio unitario': Number(item.price),
+                            'Total vendido': totals.revenue, 'Costo total': totals.cost ?? '', 'Ganancia bruta': totals.profit ?? '' };
+                    }));
+                    const workbook = XLSX.utils.book_new();
+                    const summary = this.salesReport;
+                    XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet([{
+                        Periodo: summary.range?.label || '', Ventas: summary.sales.length,
+                        'Total vendido': summary.revenue, 'Costo de productos': summary.cost ?? '',
+                        'Ganancia bruta': summary.profit ?? '', 'Ventas sin costo': summary.missingSales
+                    }]), 'Resumen');
+                    XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(rows), 'Productos vendidos');
+                    XLSX.writeFile(workbook, 'MasterFerro_Ventas_' + this.salesAnchor + '.xlsx');
                 },
 
                 get totalUnits() {
