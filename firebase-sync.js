@@ -1,11 +1,11 @@
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js';
 import { getAuth, onAuthStateChanged, sendSignInLinkToEmail, isSignInWithEmailLink, signInWithEmailLink, signOut } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js';
 import { getFirestore, collection, doc, setDoc, deleteDoc, onSnapshot, runTransaction } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js';
-import { businessDay, parseSaleDate, saleTotals, itemTotals, salesReport, displaySaleDate, withInventoryCosts } from './sales-report.js?v=box-1';
-import { lineAmount, productValues } from './pricing.js?v=box-1';
+import { businessDay, parseSaleDate, saleTotals, itemTotals, salesReport, displaySaleDate, withInventoryCosts } from './sales-report.js?v=box-2';
+import { lineAmount, productValues, stockUnits, maxCartQuantity } from './pricing.js?v=box-2';
 
 window.ferroReports = { businessDay, saleTotals, itemTotals, salesReport, displaySaleDate, withInventoryCosts };
-window.ferroPricing = { lineAmount, productValues };
+window.ferroPricing = { lineAmount, productValues, stockUnits, maxCartQuantity };
 
 const app = initializeApp({
     apiKey: 'AIzaSyBJRvyFuIrqrA4QrEqvBL6mf5vFMFmGu_Y',
@@ -101,7 +101,8 @@ window.ferroFirebase = {
             code: String(item.code), name: String(item.name), category: String(item.category),
             buyPrice: Number(item.buyPrice || 0), price: Number(item.price || 0), stock: Number(item.stock || 0),
             boxMode: !!item.boxMode, unitsPerBox: Number(item.unitsPerBox || 1), boxCost: Number(item.boxCost ?? item.buyPrice ?? 0),
-            saleUnits: Number(item.saleUnits || 1), salePrice: Number(item.salePrice ?? item.price ?? 0)
+            saleUnits: Number(item.saleUnits || 1), salePrice: Number(item.salePrice ?? item.price ?? 0),
+            boxSalePrice: item.boxSalePrice == null ? null : Number(item.boxSalePrice)
             });
         }));
     },
@@ -113,21 +114,26 @@ window.ferroFirebase = {
         return write(() => runTransaction(db, async transaction => {
             const saleRef = ref('sales', sale.id);
             if ((await transaction.get(saleRef)).exists()) throw new Error('La venta ya está registrada.');
-            const products = [];
+            const products = new Map();
             const recordedItems = [];
             for (const item of sale.items) {
                 const productRef = ref('inventory', item.id);
                 const snapshot = await transaction.get(productRef);
                 const qty = Number(item.qty);
-                if (!snapshot.exists() || !Number.isInteger(qty) || qty <= 0 || snapshot.data().stock < qty) throw new Error('Existencias insuficientes para ' + item.name);
-                products.push({ productRef, stock: snapshot.data().stock - qty });
+                const units = stockUnits(item);
+                const previousUnits = products.get(String(item.id))?.units || 0;
+                if (!snapshot.exists() || !Number.isSafeInteger(qty) || qty <= 0 || !Number.isSafeInteger(units) || units <= 0 || snapshot.data().stock < previousUnits + units) throw new Error('Existencias insuficientes para ' + item.name);
+                products.set(String(item.id), { productRef, units: previousUnits + units, stock: snapshot.data().stock - previousUnits - units });
                 const product = snapshot.data();
-                recordedItems.push({ ...item, lineTotal: lineAmount(item), code: product.code, name: product.name, category: product.category,
+                if (item.presentation === 'box' && (!product.boxMode || product.boxSalePrice == null || Number(product.unitsPerBox) !== Number(item.unitsPerBox) || Number(product.boxSalePrice) !== Number(item.boxSalePrice))) {
+                    throw new Error('La presentacion o el precio de la caja cambio. Vuelve a agregar el producto al carrito.');
+                }
+                recordedItems.push({ ...item, unitsSold: units, lineTotal: lineAmount(item), code: product.code, name: product.name, category: product.category,
                     buyPrice: Number(product.buyPrice || 0), costKnown: product.buyPrice != null && Number.isFinite(Number(product.buyPrice)) && Number(product.buyPrice) >= 0,
-                    stockBefore: Number(product.stock), stockAfter: Number(product.stock) - qty });
+                    stockBefore: Number(product.stock) - previousUnits, stockAfter: Number(product.stock) - previousUnits - units });
             }
-            for (const product of products) transaction.update(product.productRef, { stock: product.stock });
-            const recordedSale = { ...sale, total: recordedItems.reduce((sum, item) => sum + Math.round(item.lineTotal * 100), 0) / 100, items: recordedItems, reportVersion: 2 };
+            for (const product of products.values()) transaction.update(product.productRef, { stock: product.stock });
+            const recordedSale = { ...sale, itemsCount: recordedItems.reduce((sum, item) => sum + item.unitsSold, 0), total: recordedItems.reduce((sum, item) => sum + Math.round(item.lineTotal * 100), 0) / 100, items: recordedItems, reportVersion: 3 };
             const totals = saleTotals(recordedSale);
             transaction.set(saleRef, { ...recordedSale, totalCost: totals.cost, grossProfit: totals.profit });
         }));
@@ -138,21 +144,23 @@ window.ferroFirebase = {
             const snapshot = await transaction.get(saleRef);
             if (!snapshot.exists()) throw new Error('La venta ya fue anulada.');
             const sale = snapshot.data();
-            const returned = itemId == null ? sale.items : sale.items.filter(item => String(item.id) === String(itemId));
+            const returned = itemId == null ? sale.items : sale.items.filter(item => String(item.lineId || item.id) === String(itemId));
             if (!returned.length) throw new Error('El producto ya fue devuelto.');
-            const products = [];
+            const products = new Map();
             for (const item of returned) {
                 const productRef = ref('inventory', item.id);
                 const product = await transaction.get(productRef);
-                if (product.exists()) products.push({ productRef, stock: product.data().stock + Number(item.qty) });
+                const previousUnits = products.get(String(item.id))?.units || 0;
+                const units = previousUnits + stockUnits(item);
+                if (product.exists()) products.set(String(item.id), { productRef, units, stock: product.data().stock + units });
             }
-            for (const product of products) transaction.update(product.productRef, { stock: product.stock });
+            for (const product of products.values()) transaction.update(product.productRef, { stock: product.stock });
             const items = sale.items.filter(item => !returned.includes(item));
             if (!items.length) transaction.delete(saleRef);
             else {
                 const total = items.reduce((sum, item) => sum + Math.round(lineAmount(item) * 100), 0) / 100;
                 const totals = saleTotals({ items, total });
-                transaction.update(saleRef, { items, itemsCount: items.reduce((sum, item) => sum + Number(item.qty), 0), total, totalCost: totals.cost, grossProfit: totals.profit });
+                transaction.update(saleRef, { items, itemsCount: items.reduce((sum, item) => sum + stockUnits(item), 0), total, totalCost: totals.cost, grossProfit: totals.profit });
             }
         }));
     }

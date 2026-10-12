@@ -153,3 +153,47 @@ test('box product persists and odd sale charges 8 cents, restores correct stock 
     assert.equal(c.store.get(key('inventory', 'bolts')).stock, 100);
     assert.equal(c.store.has(key('sales', 'odd')), false);
 });
+
+test('mixed box/unit sale shares stock and single-line return keeps the other presentation', async () => {
+    const product = { code: '61', name: 'Tornillos', category: 'Tornilleria', boxMode: true,
+        unitsPerBox: 200, boxCost: 2, boxSalePrice: 3, buyPrice: 0.01, price: 0.025, saleUnits: 2, salePrice: 0.05, stock: 400 };
+    const c = client(new Map([[key('inventory', 'screws'), product]]));
+    await c.login();
+    const carton = { ...product, id: 'screws', lineId: 'screws:box', presentation: 'box', price: 3, qty: 1 };
+    const loose = { ...product, id: 'screws', lineId: 'screws:unit', presentation: 'unit', qty: 2 };
+    await c.api.completeSale({ id: 'mixed', items: [carton, loose], total: 3.05 });
+    const recorded = c.store.get(key('sales', 'mixed'));
+    assert.equal(recorded.total, 3.05);
+    assert.equal(recorded.totalCost, 2.02);
+    assert.ok(Math.abs(recorded.grossProfit - 1.03) < 0.000001);
+    assert.equal(recorded.itemsCount, 202);
+    assert.equal(c.store.get(key('inventory', 'screws')).stock, 198);
+    await c.api.returnSale('mixed', 'screws:unit');
+    const remaining = c.store.get(key('sales', 'mixed'));
+    assert.equal(remaining.items.length, 1);
+    assert.equal(remaining.items[0].presentation, 'box');
+    assert.equal(remaining.total, 3);
+    assert.equal(remaining.totalCost, 2);
+    assert.equal(remaining.grossProfit, 1);
+    assert.equal(remaining.itemsCount, 200);
+    assert.equal(c.store.get(key('inventory', 'screws')).stock, 200);
+    await c.api.returnSale('mixed');
+    assert.equal(c.store.get(key('inventory', 'screws')).stock, 400);
+});
+
+test('full mixed return restores all units; combined overselling is atomic', async () => {
+    const product = { code: '61', name: 'Pernos', category: 'Herramientas', boxMode: true,
+        unitsPerBox: 200, boxSalePrice: 3, buyPrice: 0.01, stock: 201 };
+    const c = client(new Map([[key('inventory', 'p'), product]]));
+    await c.login();
+    const carton = { id: 'p', lineId: 'p:box', presentation: 'box', unitsPerBox: 200, boxSalePrice: 3, price: 3, qty: 1 };
+    const loose = { id: 'p', lineId: 'p:unit', presentation: 'unit', price: 0.025, qty: 2 };
+    await assert.rejects(c.api.completeSale({ id: 'too-many', items: [carton, loose] }));
+    assert.equal(c.store.get(key('inventory', 'p')).stock, 201);
+    assert.equal(c.store.has(key('sales', 'too-many')), false);
+    loose.qty = 1;
+    await c.api.completeSale({ id: 'ok', items: [carton, loose] });
+    assert.equal(c.store.get(key('inventory', 'p')).stock, 0);
+    await c.api.returnSale('ok');
+    assert.equal(c.store.get(key('inventory', 'p')).stock, 201);
+});

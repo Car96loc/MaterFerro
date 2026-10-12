@@ -61,3 +61,10 @@ remaining unit stock instead of resetting it to full boxes.
 The checkout rounds each product's subtotal to cents, then sums those cents.
 At 2 units for $0.05, 3 units cost $0.08. Recorded line totals are also used
 for historical profit, exports, and returns.
+
+The complete-box selling price is independent of the loose-unit/group price.
+Choose units or a complete box on each POS product. A box quantity of one
+consumes `unitsPerBox` physical units. Both presentations can appear in one
+cart, with shared stock validation and separate returnable sale lines.
+An unset box price disables complete-box sales; existing products are unchanged
+until their box selling price is configured.

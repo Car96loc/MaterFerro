@@ -41,3 +41,38 @@ test('invalid boxes, fractional quantities and negative prices are rejected', ()
 test('stored charged amount is authoritative for historical sale details', () => {
     assert.equal(pricing.lineAmount({ price: 0.025, qty: 3, lineTotal: 0.08 }), 0.08);
 });
+
+test('box has independent price and shared unit stock', () => {
+    const product = pricing.productValues({ ...box, unitsPerBox: 200, boxCost: 2, boxSalePrice: 3 });
+    assert.equal(product.boxSalePrice, 3);
+    assert.equal(pricing.lineAmount({ ...product, presentation: 'box', qty: 1 }), 3);
+    assert.equal(pricing.lineAmount({ ...product, presentation: 'unit', qty: 200 }), 5);
+    assert.equal(pricing.stockUnits({ ...product, presentation: 'box', qty: 2 }), 400);
+    const units = { id: '1', presentation: 'unit', qty: 2 };
+    const carton = { id: '1', presentation: 'box', unitsPerBox: 200, qty: 1 };
+    assert.equal(pricing.maxCartQuantity([units], carton, 201), 0);
+    assert.equal(pricing.maxCartQuantity([carton, units], units, 201), 1);
+    assert.equal(pricing.productValues(box).boxSalePrice, null);
+});
+
+test('actual application cart separates presentations and enforces combined stock', () => {
+    const context = { window: { ferroPricing: pricing, ferroReports: { businessDay: () => '2026-10-12' } } };
+    const html = fs.readFileSync(__dirname + '/index.html', 'utf8');
+    vm.runInNewContext([...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].at(-1)[1], context);
+    const app = context.ferroApp();
+    app.showNotification = () => {};
+    const product = { ...pricing.productValues({ ...box, unitsPerBox: 200, boxCost: 2, boxSalePrice: 3, boxCount: 2 }), id: '1', name: 'Pernos', code: '1' };
+    app.inventory = [product];
+    app.addToCart(product, 'box');
+    app.addToCart(product, 'unit');
+    app.addToCart(product, 'unit');
+    assert.equal(app.cart.length, 2);
+    assert.equal(app.cartTotal, 3.05);
+    assert.equal(app.cartMaxQty(app.cart[0]), 1);
+    app.updateCartQty(0, 1);
+    assert.equal(app.cart[0].qty, 1);
+    app.removeFromCart(1);
+    app.updateCartQty(0, 1);
+    assert.equal(app.cart[0].qty, 2);
+    assert.equal(app.cartTotal, 6);
+});
