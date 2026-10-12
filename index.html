@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>FerroMaster Inventory & POS System</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -13,247 +12,26 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
     <style>
         body { font-family: 'Inter', sans-serif; }
+        [x-cloak] { display: none !important; }
         ::-webkit-scrollbar { width: 4px; height: 4px; }
         ::-webkit-scrollbar-track { background: #f1f5f9; }
         ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
     </style>
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, setDoc, onSnapshot, collection, enableIndexedDbPersistence } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-
-        const firebaseConfig = typeof __firebase_config !== 'undefined' 
-            ? JSON.parse(__firebase_config) 
-            : {
-                apiKey: "demo-api-key",
-                authDomain: "demo-app.firebaseapp.com",
-                projectId: "demo-app",
-                storageBucket: "demo-app.appspot.com",
-                messagingSenderId: "123456789",
-                appId: "1:123456789:web:demo"
-            };
-
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'ferromaster-pos';
-        const app = initializeApp(firebaseConfig);
-        const auth = getAuth(app);
-        const db = getFirestore(app);
-
-        try {
-            enableIndexedDbPersistence(db).catch((err) => {
-                console.warn("Persistence note:", err.code);
-            });
-        } catch (e) {}
-
-        let useLocalStorageFallback = false;
-
-        window.ferroFirebase = {
-            db,
-            appId,
-            async initAuth(onAuthReady) {
-                try {
-                    if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                        await signInWithCustomToken(auth, __initial_auth_token);
-                    } else {
-                        await signInAnonymously(auth);
-                    }
-                } catch (e) {
-                    console.warn("Auth error, attempting anonymous login", e);
-                    try { await signInAnonymously(auth); } catch(err) {}
-                }
-
-                onAuthStateChanged(auth, (user) => {
-                    if (user) {
-                        onAuthReady(user);
-                    } else {
-                        onAuthReady({ uid: 'anonymous' });
-                    }
-                });
-            },
-            
-            subscribeInventory(callback) {
-                if (useLocalStorageFallback) {
-                    const localData = localStorage.getItem(appId + '_inventory');
-                    if (localData) {
-                        callback(JSON.parse(localData));
-                    }
-                    return () => {};
-                }
-
-                const invRef = collection(db, 'artifacts', appId, 'public', 'data', 'inventory');
-                return onSnapshot(invRef, (snapshot) => {
-                    const items = [];
-                    snapshot.forEach((doc) => {
-                        items.push({ id: doc.id, ...doc.data() });
-                    });
-                    callback(items);
-                }, (error) => {
-                    console.warn("Firestore sync permission/network error. Switching to local storage mode.", error);
-                    useLocalStorageFallback = true;
-                    const localData = localStorage.getItem(appId + '_inventory');
-                    if (localData) {
-                        callback(JSON.parse(localData));
-                    } else {
-                        callback([]);
-                    }
-                });
-            },
-
-            subscribeSales(callback) {
-                if (useLocalStorageFallback) {
-                    const localSales = localStorage.getItem(appId + '_sales');
-                    if (localSales) {
-                        callback(JSON.parse(localSales));
-                    }
-                    return () => {};
-                }
-
-                const salesRef = collection(db, 'artifacts', appId, 'public', 'data', 'sales');
-                return onSnapshot(salesRef, (snapshot) => {
-                    const sales = [];
-                    snapshot.forEach((doc) => {
-                        sales.push({ id: doc.id, ...doc.data() });
-                    });
-                    sales.sort((a, b) => new Date(b.date) - new Date(a.date));
-                    callback(sales);
-                }, (error) => {
-                    console.warn("Firestore sales sync error, using local fallback.", error);
-                    useLocalStorageFallback = true;
-                    const localSales = localStorage.getItem(appId + '_sales');
-                    if (localSales) {
-                        callback(JSON.parse(localSales));
-                    }
-                });
-            },
-
-            async saveProduct(item) {
-                const docId = String(item.id || item.code);
-                const productData = {
-                    code: String(item.code),
-                    name: item.name,
-                    category: item.category,
-                    buyPrice: Number(item.buyPrice || 0),
-                    price: Number(item.price || 0),
-                    stock: Number(item.stock || 0)
-                };
-
-                if (useLocalStorageFallback) {
-                    let items = JSON.parse(localStorage.getItem(appId + '_inventory') || '[]');
-                    const idx = items.findIndex(i => String(i.id) === docId || String(i.code) === String(item.code));
-                    if (idx !== -1) {
-                        items[idx] = { id: docId, ...productData };
-                    } else {
-                        items.push({ id: docId, ...productData });
-                    }
-                    localStorage.setItem(appId + '_inventory', JSON.stringify(items));
-                    return;
-                }
-
-                try {
-                    const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'inventory', docId);
-                    await setDoc(docRef, productData, { merge: true });
-                } catch (err) {
-                    console.warn("Write permission denied on Firestore. Switching to localStorage fallback.", err);
-                    useLocalStorageFallback = true;
-                    let items = JSON.parse(localStorage.getItem(appId + '_inventory') || '[]');
-                    const idx = items.findIndex(i => String(i.id) === docId);
-                    if (idx !== -1) {
-                        items[idx] = { id: docId, ...productData };
-                    } else {
-                        items.push({ id: docId, ...productData });
-                    }
-                    localStorage.setItem(appId + '_inventory', JSON.stringify(items));
-                }
-            },
-
-            async deleteProduct(docId) {
-                if (useLocalStorageFallback) {
-                    let items = JSON.parse(localStorage.getItem(appId + '_inventory') || '[]');
-                    items = items.filter(i => String(i.id) !== String(docId));
-                    localStorage.setItem(appId + '_inventory', JSON.stringify(items));
-                    return;
-                }
-
-                try {
-                    const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'inventory', String(docId));
-                    const { deleteDoc } = await import("https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js");
-                    await deleteDoc(docRef);
-                } catch (err) {
-                    console.warn("Delete permission error, removing from local storage.", err);
-                    useLocalStorageFallback = true;
-                    let items = JSON.parse(localStorage.getItem(appId + '_inventory') || '[]');
-                    items = items.filter(i => String(i.id) !== String(docId));
-                    localStorage.setItem(appId + '_inventory', JSON.stringify(items));
-                }
-            },
-
-            async saveSale(sale) {
-                if (useLocalStorageFallback) {
-                    let sales = JSON.parse(localStorage.getItem(appId + '_sales') || '[]');
-                    sales.unshift(sale);
-                    localStorage.setItem(appId + '_sales', JSON.stringify(sales));
-                    return;
-                }
-
-                try {
-                    const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'sales', String(sale.id));
-                    await setDoc(docRef, sale);
-                } catch (err) {
-                    console.warn("Sale write permission error, storing locally.", err);
-                    useLocalStorageFallback = true;
-                    let sales = JSON.parse(localStorage.getItem(appId + '_sales') || '[]');
-                    sales.unshift(sale);
-                    localStorage.setItem(appId + '_sales', JSON.stringify(sales));
-                }
-            },
-
-            async updateSale(sale) {
-                if (useLocalStorageFallback) {
-                    let sales = JSON.parse(localStorage.getItem(appId + '_sales') || '[]');
-                    const idx = sales.findIndex(s => String(s.id) === String(sale.id));
-                    if (idx !== -1) {
-                        sales[idx] = sale;
-                        localStorage.setItem(appId + '_sales', JSON.stringify(sales));
-                    }
-                    return;
-                }
-
-                try {
-                    const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'sales', String(sale.id));
-                    await setDoc(docRef, sale, { merge: true });
-                } catch (err) {
-                    useLocalStorageFallback = true;
-                    let sales = JSON.parse(localStorage.getItem(appId + '_sales') || '[]');
-                    const idx = sales.findIndex(s => String(s.id) === String(sale.id));
-                    if (idx !== -1) {
-                        sales[idx] = sale;
-                        localStorage.setItem(appId + '_sales', JSON.stringify(sales));
-                    }
-                }
-            },
-
-            async deleteSale(saleId) {
-                if (useLocalStorageFallback) {
-                    let sales = JSON.parse(localStorage.getItem(appId + '_sales') || '[]');
-                    sales = sales.filter(s => String(s.id) !== String(saleId));
-                    localStorage.setItem(appId + '_sales', JSON.stringify(sales));
-                    return;
-                }
-
-                try {
-                    const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'sales', String(saleId));
-                    const { deleteDoc } = await import("https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js");
-                    await deleteDoc(docRef);
-                } catch (err) {
-                    useLocalStorageFallback = true;
-                    let sales = JSON.parse(localStorage.getItem(appId + '_sales') || '[]');
-                    sales = sales.filter(s => String(s.id) !== String(saleId));
-                    localStorage.setItem(appId + '_sales', JSON.stringify(sales));
-                }
-            }
-        };
-    </script>
+    <script type="module" src="./firebase-sync.js"></script>
 </head>
 <body class="bg-slate-100 text-slate-800 h-full flex flex-col overflow-x-hidden" x-data="ferroApp()">
+    <div x-cloak x-show="!authReady" class="fixed inset-0 z-50 bg-slate-100 flex items-center justify-center p-4">
+        <form @submit.prevent="sendLoginLink()" class="w-full max-w-sm bg-white border border-slate-200 rounded-lg p-6 space-y-4">
+            <h1 class="text-xl font-bold">Máster Ferro</h1>
+            <label class="block text-sm">Correo
+                <input type="email" x-model="loginEmail" required autocomplete="email" class="mt-2 w-full border rounded p-2">
+            </label>
+            <button type="submit" :disabled="authBusy" class="w-full bg-emerald-700 text-white rounded p-2 disabled:opacity-50">
+                <i class="fa-solid fa-envelope mr-2"></i><span x-text="authBusy ? 'Conectando...' : 'Enviar enlace de acceso'"></span>
+            </button>
+            <p role="status" class="text-sm break-words" x-text="authMessage"></p>
+        </form>
+    </div>
 
     <header class="bg-slate-900 text-white shadow-md z-30 flex justify-between items-center px-4 md:px-6 py-3 md:py-4 shrink-0">
         <div class="flex items-center space-x-2 md:space-x-3">
@@ -265,10 +43,11 @@
                 <span class="font-bold italic text-amber-400 text-lg md:text-2xl ml-1">Ferro</span>
             </div>
             <span class="text-[10px] bg-slate-800 text-slate-300 px-2 py-0.5 rounded-lg border border-slate-700 hidden lg:inline-block">Sistema POS & Inventario Cloud</span>
-            <span class="text-[10px] bg-emerald-900/60 text-emerald-300 border border-emerald-700/50 px-2 py-0.5 rounded-lg flex items-center space-x-1" x-show="!isSyncing">
+            <span class="text-[10px] border px-2 py-0.5 rounded flex items-center space-x-1" :class="syncStatus === 'Sincronizado' ? 'text-emerald-300 border-emerald-700' : 'text-amber-300 border-amber-700'">
                 <i class="fa-solid fa-circle text-[6px] animate-pulse text-emerald-400"></i>
-                <span>Sincronizado</span>
+                <span x-text="syncStatus"></span>
             </span>
+            <button x-show="authReady" @click="window.ferroFirebase.logout()" title="Cerrar sesión" aria-label="Cerrar sesión" class="p-2"><i class="fa-solid fa-right-from-bracket"></i></button>
         </div>
         <div class="flex items-center space-x-2 md:space-x-3">
             <button @click="exportToExcel()" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs px-2.5 md:px-3.5 py-2 rounded-xl font-medium transition flex items-center shadow-sm">
@@ -934,6 +713,14 @@
                 itemToDelete: null,
                 selectedSale: null,
                 isSyncing: true,
+                syncStatus: 'Conectando...',
+                authReady: false,
+                authBusy: false,
+                saleBusy: false,
+                returnBusy: false,
+                deleteBusy: false,
+                authMessage: '',
+                loginEmail: 'carzunsan@gmail.com',
                 
                 returnMode: 'all',
                 itemToReturn: null,
@@ -1036,23 +823,36 @@
                     this.updateClock();
                     setInterval(() => this.updateClock(), 1000);
 
-                    if (window.ferroFirebase) {
-                        window.ferroFirebase.initAuth(() => {
-                            window.ferroFirebase.subscribeInventory(async (cloudItems) => {
-                                if (cloudItems.length === 0) {
-                                    for (const item of this.inventory) {
-                                        await window.ferroFirebase.saveProduct(item);
-                                    }
-                                } else {
-                                    this.inventory = cloudItems.sort((a, b) => parseInt(a.code) - parseInt(b.code));
-                                }
-                                this.isSyncing = false;
-                            });
+                    this.inventory = [];
+                    this.sales = [];
+                    window.addEventListener('ferro-sync', event => {
+                        this.syncStatus = event.detail;
+                        this.isSyncing = event.detail !== 'Sincronizado';
+                    });
+                    window.addEventListener('ferro-error', event => this.showNotification(event.detail));
+                    window.ferroFirebase.initAuth(user => {
+                        this.authReady = !!user;
+                        if (!user) {
+                            this.inventory = [];
+                            this.sales = [];
+                            this.cart = [];
+                        }
+                    }, message => { this.authMessage = message; });
+                    window.ferroFirebase.subscribeInventory(cloudItems => {
+                        this.inventory = cloudItems.sort((a, b) => String(a.code).localeCompare(String(b.code), 'es', { numeric: true }));
+                    });
+                    window.ferroFirebase.subscribeSales(cloudSales => { this.sales = cloudSales; });
+                },
 
-                            window.ferroFirebase.subscribeSales((cloudSales) => {
-                                this.sales = cloudSales;
-                            });
-                        });
+                async sendLoginLink() {
+                    this.authBusy = true;
+                    try {
+                        await window.ferroFirebase.sendLoginLink(this.loginEmail);
+                        this.authMessage = 'Enlace enviado. Revisa tu correo y la carpeta de spam.';
+                    } catch (error) {
+                        this.authMessage = error.message;
+                    } finally {
+                        this.authBusy = false;
                     }
                 },
 
@@ -1299,7 +1099,9 @@
                 },
 
                 async confirmDeleteProduct() {
-                    if (this.itemToDelete) {
+                    if (this.itemToDelete && !this.deleteBusy) {
+                        this.deleteBusy = true;
+                        try {
                         const id = this.itemToDelete.id;
                         if (window.ferroFirebase) {
                             await window.ferroFirebase.deleteProduct(id);
@@ -1309,6 +1111,11 @@
                         this.showNotification('Producto eliminado correctamente');
                         this.isDeleteModalOpen = false;
                         this.itemToDelete = null;
+                        } catch (error) {
+                            this.showNotification(error.message);
+                        } finally {
+                            this.deleteBusy = false;
+                        }
                     }
                 },
 
@@ -1318,35 +1125,27 @@
                 },
 
                 async completeSale() {
-                    const saleId = 'V-' + Math.floor(100000 + Math.random() * 900000);
+                    if (this.saleBusy || !this.cart.length) return;
+                    this.saleBusy = true;
+                    const saleId = 'V-' + crypto.randomUUID();
                     const newSale = {
                         id: saleId,
-                        date: new Date().toLocaleString('es-ES'),
+                        date: new Date().toISOString(),
                         paymentMethod: this.paymentMethod,
-                        itemsCount: this.cart.reduce((sum, i) => sum + (parseInt(i.qty) || 0), 0),
-                        items: [...this.cart],
+                        itemsCount: this.cart.reduce((sum, item) => sum + Number(item.qty), 0),
+                        items: this.cart.map(item => ({ ...item })),
                         total: this.cartTotal
                     };
-
-                    for (const cartItem of this.cart) {
-                        const invItem = this.inventory.find(i => i.id === cartItem.id);
-                        if (invItem) {
-                            const newStock = Math.max(0, invItem.stock - (parseInt(cartItem.qty) || 0));
-                            invItem.stock = newStock;
-                            if (window.ferroFirebase) {
-                                await window.ferroFirebase.saveProduct({ ...invItem, stock: newStock });
-                            }
-                        }
+                    try {
+                        await window.ferroFirebase.completeSale(newSale);
+                        this.cart = [];
+                        this.isCheckoutOpen = false;
+                        this.showNotification('Venta completada y sincronizada');
+                    } catch (error) {
+                        this.showNotification(error.message);
+                    } finally {
+                        this.saleBusy = false;
                     }
-
-                    if (window.ferroFirebase) {
-                        await window.ferroFirebase.saveSale(newSale);
-                    }
-                    this.sales.unshift(newSale);
-
-                    this.cart = [];
-                    this.isCheckoutOpen = false;
-                    this.showNotification('¡Venta completada y sincronizada! (' + saleId + ')');
                 },
 
                 viewSaleDetail(sale) {
@@ -1377,63 +1176,20 @@
                         this.returnPasswordError = true;
                         return;
                     }
-
-                    if (!this.selectedSale) return;
-
-                    if (this.returnMode === 'item' && this.itemToReturn) {
-                        const invItem = this.inventory.find(i => i.id === this.itemToReturn.id);
-                        if (invItem) {
-                            const updatedStock = invItem.stock + (parseInt(this.itemToReturn.qty) || 0);
-                            invItem.stock = updatedStock;
-                            if (window.ferroFirebase) {
-                                await window.ferroFirebase.saveProduct({ ...invItem, stock: updatedStock });
-                            }
-                        }
-
-                        const itemQty = parseInt(this.itemToReturn.qty) || 0;
-                        const itemSubtotal = this.itemToReturn.price * itemQty;
-                        
-                        this.selectedSale.items.splice(this.itemToReturnIndex, 1);
-                        this.selectedSale.itemsCount -= itemQty;
-                        this.selectedSale.total -= itemSubtotal;
-
-                        if (this.selectedSale.items.length === 0) {
-                            if (window.ferroFirebase) {
-                                await window.ferroFirebase.deleteSale(this.selectedSale.id);
-                            }
-                            this.sales = this.sales.filter(s => s.id !== this.selectedSale.id);
-                            this.isSaleDetailOpen = false;
-                        } else {
-                            if (window.ferroFirebase) {
-                                await window.ferroFirebase.updateSale(this.selectedSale);
-                            }
-                        }
-
-                        this.showNotification('Producto devuelto y sincronizado');
-                    } else if (this.returnMode === 'all') {
-                        for (const cartItem of this.selectedSale.items) {
-                            const invItem = this.inventory.find(i => i.id === cartItem.id);
-                            if (invItem) {
-                                const updatedStock = invItem.stock + (parseInt(cartItem.qty) || 0);
-                                invItem.stock = updatedStock;
-                                if (window.ferroFirebase) {
-                                    await window.ferroFirebase.saveProduct({ ...invItem, stock: updatedStock });
-                                }
-                            }
-                        }
-
-                        if (window.ferroFirebase) {
-                            await window.ferroFirebase.deleteSale(this.selectedSale.id);
-                        }
-                        this.sales = this.sales.filter(s => s.id !== this.selectedSale.id);
-
-                        this.showNotification('Venta anulada. Inventario reingresado y sincronizado.');
+                    if (!this.selectedSale || this.returnBusy) return;
+                    this.returnBusy = true;
+                    try {
+                        await window.ferroFirebase.returnSale(this.selectedSale.id, this.returnMode === 'item' ? this.itemToReturn.id : null);
                         this.isSaleDetailOpen = false;
+                        this.isReturnAuthOpen = false;
+                        this.returnAuthPassword = '';
+                        this.returnPasswordError = false;
+                        this.showNotification('Devolucion sincronizada');
+                    } catch (error) {
+                        this.showNotification(error.message);
+                    } finally {
+                        this.returnBusy = false;
                     }
-
-                    this.isReturnAuthOpen = false;
-                    this.returnAuthPassword = '';
-                    this.returnPasswordError = false;
                 },
 
                 exportToExcel() {

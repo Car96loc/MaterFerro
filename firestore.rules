@@ -1,0 +1,13 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isOwner() {
+      return request.auth != null
+        && request.auth.token.email == 'carzunsan@gmail.com'
+        && request.auth.token.email_verified == true;
+    }
+    match /artifacts/ferromaster-pos/public/data/{kind}/{id} {
+      allow read, write: if isOwner() && kind in ['inventory', 'sales'];
+    }
+  }
+}
