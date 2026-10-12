@@ -1071,7 +1071,7 @@
 
                     try {
                         if (window.ferroFirebase) {
-                            await window.ferroFirebase.saveProduct(prodData);
+                            await window.ferroFirebase.saveProduct(prodData, { create: !this.isEditing });
                         }
 
                         const idx = this.inventory.findIndex(i => String(i.id) === String(prodData.id));
@@ -1089,7 +1089,7 @@
                         this.closeProductModal();
                     } catch (e) {
                         console.error('Error al guardar producto:', e);
-                        this.showNotification('Error al guardar el producto');
+                        this.showNotification(e.message || 'Error al guardar el producto');
                     }
                 },
 

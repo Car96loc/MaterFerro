@@ -86,10 +86,16 @@ window.ferroFirebase = {
     logout() { return signOut(auth); },
     subscribeInventory(callback) { subscriptions.set('inventory', callback); start('inventory'); },
     subscribeSales(callback) { subscriptions.set('sales', callback); start('sales'); },
-    saveProduct(item) {
-        return write(() => setDoc(ref('inventory', item.id || item.code), {
+    saveProduct(item, { create = false } = {}) {
+        return write(() => runTransaction(db, async transaction => {
+            const productRef = ref('inventory', item.id || item.code);
+            const previous = await transaction.get(productRef);
+            if (create && previous.exists()) throw new Error('Ese codigo ya existe. Cierra y abre Nuevo producto para generar otro.');
+            if (!create && !previous.exists()) throw new Error('Este producto ya fue eliminado en otro dispositivo.');
+            transaction.set(productRef, {
             code: String(item.code), name: String(item.name), category: String(item.category),
             buyPrice: Number(item.buyPrice || 0), price: Number(item.price || 0), stock: Number(item.stock || 0)
+            });
         }));
     },
     deleteProduct(id) { return write(() => deleteDoc(ref('inventory', id))); },

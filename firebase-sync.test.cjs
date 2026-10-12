@@ -51,8 +51,12 @@ test('verified owner only, with no anonymous writes', async () => {
     await c.login({ email: 'other@example.com', emailVerified: true });
     await assert.rejects(c.api.deleteProduct('x'));
     await c.login();
-    await c.api.saveProduct({ id: 'p1', code: '1', name: 'Martillo', category: 'Herramientas', stock: 4 });
+    await c.api.saveProduct({ id: 'p1', code: '1', name: 'Martillo', category: 'Herramientas', stock: 4 }, { create: true });
     assert.equal(c.store.get(key('inventory', 'p1')).stock, 4);
+    await assert.rejects(c.api.saveProduct({ id: 'p1', stock: 99 }, { create: true }));
+    await c.api.deleteProduct('p1');
+    await assert.rejects(c.api.saveProduct({ id: 'p1', stock: 99 }));
+    assert.equal(c.store.has(key('inventory', 'p1')), false);
 });
 
 test('empty inventory is delivered and never recreated; sync includes both collections', async () => {
