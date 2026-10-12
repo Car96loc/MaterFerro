@@ -17,7 +17,7 @@
         ::-webkit-scrollbar-track { background: #f1f5f9; }
         ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
     </style>
-    <script type="module" src="./firebase-sync.js?v=box-2"></script>
+    <script type="module" src="./firebase-sync.js?v=margins-1"></script>
 </head>
 <body class="bg-slate-100 text-slate-800 h-full flex flex-col overflow-x-hidden" x-data="ferroApp()">
     <div x-cloak x-show="!authReady" class="fixed inset-0 z-50 bg-slate-100 flex items-center justify-center p-4">
@@ -105,15 +105,15 @@
                 </div>
                 <div class="flex justify-between items-center text-xs">
                     <span class="text-slate-400">Inversión:</span>
-                    <span class="font-bold text-slate-200" x-text="formatMoney(totalInvestment)"></span>
+                    <span class="font-bold text-slate-200" x-text="formatEstimateMoney(totalInvestment)"></span>
                 </div>
                 <div class="flex justify-between items-center text-xs">
-                    <span class="text-slate-400">Venta Estimada:</span>
-                    <span class="font-bold text-emerald-400" x-text="formatMoney(totalEstimatedSales)"></span>
+                    <span class="text-slate-400" x-text="inventoryScenario === 'boxes' ? 'Venta (cajas + sueltos):' : 'Venta (unidades):'"></span>
+                    <span class="font-bold text-emerald-400" x-text="formatEstimateMoney(totalEstimatedSales)"></span>
                 </div>
                 <div class="border-t border-slate-700/60 pt-2 flex justify-between items-center text-xs">
                     <span class="text-slate-300 font-medium">Ganancia Total:</span>
-                    <span class="font-extrabold text-amber-400" x-text="formatMoney(totalPotentialProfit)"></span>
+                    <span class="font-extrabold text-amber-400" x-text="formatEstimateMoney(totalPotentialProfit)"></span>
                 </div>
             </div>
         </aside>
@@ -354,7 +354,7 @@
                             <tbody><template x-for="row in salesReport.days" :key="row.day"><tr class="border-b border-slate-100">
                                 <td class="p-2"><button @click="salesAnchor = row.day; salesPeriod = 'day'" :disabled="row.day === 'Sin fecha'" class="text-emerald-700 underline" x-text="row.day"></button></td>
                                 <td class="p-2 text-right" x-text="row.count"></td><td class="p-2 text-right" x-text="formatMoney(row.revenue)"></td>
-                                <td class="p-2 text-right" x-text="formatReportMoney(row.cost)"></td><td class="p-2 text-right font-semibold" x-text="formatReportMoney(row.profit)"></td>
+                                <td class="p-2 text-right" x-text="formatEstimateMoney(row.cost)"></td><td class="p-2 text-right font-semibold" x-text="formatEstimateMoney(row.profit)"></td>
                             </tr></template></tbody>
                         </table>
                     </div>
@@ -384,126 +384,77 @@
             </div>
 
             <!-- TAB: GANANCIAS & ANÁLISIS -->
-            <div x-show="activeTab === 'profits'" class="h-full flex flex-col space-y-6 overflow-y-auto">
-                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                    <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex items-center space-x-4">
-                        <div class="w-12 h-12 bg-blue-100 text-blue-600 rounded-xl flex items-center justify-center text-xl font-bold shrink-0">
-                            <i class="fa-solid fa-wallet"></i>
-                        </div>
-                        <div>
-                            <div class="text-xs text-slate-500 font-semibold uppercase">Inversión Total (Stock)</div>
-                            <div class="text-xl font-extrabold text-slate-900 mt-0.5" x-text="formatMoney(totalInvestment)"></div>
-                        </div>
-                    </div>
-                    <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex items-center space-x-4">
-                        <div class="w-12 h-12 bg-emerald-100 text-emerald-600 rounded-xl flex items-center justify-center text-xl font-bold shrink-0">
-                            <i class="fa-solid fa-coins"></i>
-                        </div>
-                        <div>
-                            <div class="text-xs text-slate-500 font-semibold uppercase">Venta Estimada (Stock)</div>
-                            <div class="text-xl font-extrabold text-emerald-600 mt-0.5" x-text="formatMoney(totalEstimatedSales)"></div>
-                        </div>
-                    </div>
-                    <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex items-center space-x-4">
-                        <div class="w-12 h-12 bg-amber-100 text-amber-600 rounded-xl flex items-center justify-center text-xl font-bold shrink-0">
-                            <i class="fa-solid fa-chart-line"></i>
-                        </div>
-                        <div>
-                            <div class="text-xs text-slate-500 font-semibold uppercase">Ganancia Potencial Total</div>
-                            <div class="text-xl font-extrabold text-amber-600 mt-0.5" x-text="formatMoney(totalPotentialProfit)"></div>
-                        </div>
-                    </div>
-                    <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex items-center space-x-4">
-                        <div class="w-12 h-12 bg-violet-100 text-violet-600 rounded-xl flex items-center justify-center text-xl font-bold shrink-0">
-                            <i class="fa-solid fa-percent"></i>
-                        </div>
-                        <div>
-                            <div class="text-xs text-slate-500 font-semibold uppercase">Margen Promedio</div>
-                            <div class="text-xl font-extrabold text-violet-600 mt-0.5" x-text="averageProfitMargin + '%'"></div>
-                        </div>
+            <div x-show="activeTab === 'profits'" class="h-full overflow-y-auto bg-white">
+                <div class="p-4 border-b border-slate-200">
+                    <h3 class="font-bold text-slate-800 mb-3">Ganancias y márgenes</h3>
+                    <div role="tablist" aria-label="Tipo de análisis" class="flex flex-wrap gap-1">
+                        <button @click="profitView = 'real'" role="tab" :aria-selected="profitView === 'real'" :class="profitView === 'real' ? 'border-emerald-700 text-emerald-800' : 'border-transparent text-slate-500'" class="border-b-2 px-3 py-2 text-sm font-semibold">Ventas realizadas</button>
+                        <button @click="profitView = 'stock'" role="tab" :aria-selected="profitView === 'stock'" :class="profitView === 'stock' ? 'border-emerald-700 text-emerald-800' : 'border-transparent text-slate-500'" class="border-b-2 px-3 py-2 text-sm font-semibold">Estimación del inventario</button>
                     </div>
                 </div>
-
-                <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-                    <div class="p-4 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
-                        <h3 class="font-bold text-slate-800 flex items-center space-x-2">
-                            <i class="fa-solid fa-layer-group text-amber-500"></i>
-                            <span>Rentabilidad por Categoría</span>
-                        </h3>
-                        <span class="text-xs bg-slate-200 text-slate-700 px-3 py-1 rounded-lg font-medium" x-text="categoryProfitSummary.length + ' categorías'"></span>
+                <section x-show="profitView === 'real'" class="p-4 space-y-4">
+                    <div class="flex flex-wrap items-end gap-3">
+                        <div role="group" aria-label="Periodo de ganancias" class="flex flex-wrap border border-slate-300 rounded overflow-hidden">
+                            <template x-for="option in salesPeriods" :key="option.value">
+                                <button @click="salesPeriod = option.value" :aria-pressed="salesPeriod === option.value" :class="salesPeriod === option.value ? 'bg-emerald-700 text-white' : 'text-slate-700 hover:bg-slate-100'" class="px-3 py-2 text-sm" x-text="option.label"></button>
+                            </template>
+                        </div>
+                        <label x-show="salesPeriod !== 'all'" class="text-xs text-slate-600">Fecha de referencia<input type="date" x-model="salesAnchor" class="block border border-slate-300 rounded px-2 py-2 text-sm"></label>
+                        <span class="text-xs text-slate-500 pb-2" x-text="realSalesReport.range?.label || 'Selecciona una fecha'"></span>
                     </div>
+                    <dl class="grid grid-cols-2 lg:grid-cols-4 gap-4 py-4 border-y border-slate-200">
+                        <div><dt class="text-xs text-slate-500">Total vendido</dt><dd class="text-lg font-bold" x-text="formatMoney(realSalesReport.revenue)"></dd></div>
+                        <div><dt class="text-xs text-slate-500">Inversión recuperada</dt><dd class="text-lg font-bold" x-text="formatReportMoney(realSalesReport.cost)"></dd></div>
+                        <div><dt class="text-xs text-slate-500">Ganancia antes de gastos</dt><dd class="text-lg font-bold" :class="realSalesReport.profit < 0 ? 'text-rose-700' : 'text-emerald-700'" x-text="formatReportMoney(realSalesReport.profit)"></dd></div>
+                        <div><dt class="text-xs text-slate-500">Margen sobre ventas</dt><dd class="text-lg font-bold" x-text="formatMargin(realSalesMargin)"></dd></div>
+                    </dl>
+                    <p x-show="realSalesReport.missingSales > 0" class="text-xs text-amber-800" x-text="realSalesReport.missingSales + ' venta(s) sin costo histórico: inversión, ganancia y margen pendientes.'"></p>
+                    <div class="flex flex-wrap gap-3 justify-between items-center">
+                        <span class="text-sm text-slate-600" x-text="realSalesReport.sales.length + ' ventas registradas'"></span>
+                        <button @click="activeTab = 'sales'" class="text-sm text-emerald-700 font-semibold"><i class="fa-solid fa-receipt mr-2"></i>Ver detalle de ventas</button>
+                    </div>
+                </section>
+                <section x-show="profitView === 'stock'" class="p-4 space-y-4">
+                    <div class="flex flex-wrap justify-between items-center gap-3">
+                        <h4 class="text-sm font-semibold">Estimación del stock actual</h4>
+                        <div role="group" aria-label="Escenario de venta" class="flex flex-wrap border border-slate-300 rounded overflow-hidden">
+                            <button @click="inventoryScenario = 'units'" :aria-pressed="inventoryScenario === 'units'" :class="inventoryScenario === 'units' ? 'bg-emerald-700 text-white' : 'text-slate-700'" class="px-3 py-2 text-sm">Por unidades</button>
+                            <button @click="inventoryScenario = 'boxes'" :aria-pressed="inventoryScenario === 'boxes'" :class="inventoryScenario === 'boxes' ? 'bg-emerald-700 text-white' : 'text-slate-700'" class="px-3 py-2 text-sm">Cajas + unidades sobrantes</button>
+                        </div>
+                    </div>
+                    <dl class="grid grid-cols-2 lg:grid-cols-4 gap-4 py-4 border-y border-slate-200">
+                        <div><dt class="text-xs text-slate-500">Inversión en stock</dt><dd class="text-lg font-bold" x-text="formatEstimateMoney(inventoryReport.investment)"></dd></div>
+                        <div><dt class="text-xs text-slate-500">Venta estimada</dt><dd class="text-lg font-bold" x-text="formatEstimateMoney(inventoryReport.revenue)"></dd></div>
+                        <div><dt class="text-xs text-slate-500">Ganancia estimada</dt><dd class="text-lg font-bold" :class="inventoryReport.profit < 0 ? 'text-rose-700' : 'text-emerald-700'" x-text="formatEstimateMoney(inventoryReport.profit)"></dd></div>
+                        <div><dt class="text-xs text-slate-500">Margen sobre venta estimada</dt><dd class="text-lg font-bold" x-text="formatMargin(inventoryReport.margin)"></dd></div>
+                    </dl>
+                    <p x-show="inventoryReport.missingCosts > 0 || inventoryReport.missingPrices > 0" class="text-xs text-amber-800" x-text="inventoryReport.missingCosts + ' producto(s) sin compra y ' + inventoryReport.missingPrices + ' sin venta registrada.'"></p>
+                    <p x-show="inventoryReport.missingBoxPrices > 0" class="text-xs text-amber-800" x-text="inventoryReport.missingBoxPrices + ' producto(s) sin precio de caja: estimados por unidades.'"></p>
+                    <h4 class="text-sm font-semibold">Estimación por categoría</h4>
                     <div class="overflow-x-auto">
-                        <table class="w-full text-left border-collapse text-sm min-w-[700px]">
-                            <thead>
-                                <tr class="bg-slate-100 text-slate-600 text-xs uppercase tracking-wider border-b border-slate-200">
-                                    <th class="p-4 font-semibold">Categoría</th>
-                                    <th class="p-4 font-semibold text-center">Productos</th>
-                                    <th class="p-4 font-semibold text-center">Unidades</th>
-                                    <th class="p-4 font-semibold text-right">Inversión</th>
-                                    <th class="p-4 font-semibold text-right">Venta Estimada</th>
-                                    <th class="p-4 font-semibold text-right">Ganancia Total</th>
-                                    <th class="p-4 font-semibold text-center">Margen %</th>
-                                </tr>
-                            </thead>
-                            <tbody class="divide-y divide-slate-200">
-                                <template x-for="cat in categoryProfitSummary" :key="cat.name">
-                                    <tr class="hover:bg-slate-50 transition">
-                                        <td class="p-4 font-bold text-slate-800" x-text="cat.name"></td>
-                                        <td class="p-4 text-center text-slate-600" x-text="cat.count"></td>
-                                        <td class="p-4 text-center font-semibold text-slate-700" x-text="cat.units"></td>
-                                        <td class="p-4 text-right text-slate-600" x-text="formatMoney(cat.investment)"></td>
-                                        <td class="p-4 text-right font-semibold text-slate-800" x-text="formatMoney(cat.sales)"></td>
-                                        <td class="p-4 text-right font-bold text-emerald-600" x-text="formatMoney(cat.profit)"></td>
-                                        <td class="p-4 text-center">
-                                            <span class="px-2.5 py-1 rounded-full text-xs font-bold" :class="cat.margin >= 30 ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'" x-text="cat.margin + '%'"></span>
-                                        </td>
-                                    </tr>
-                                </template>
-                            </tbody>
+                        <table class="w-full min-w-[680px] text-sm text-left">
+                            <thead class="bg-slate-50"><tr><th class="p-3">Categoría</th><th class="p-3 text-right">Unidades</th><th class="p-3 text-right">Inversión</th><th class="p-3 text-right">Venta estimada</th><th class="p-3 text-right">Ganancia estimada</th><th class="p-3 text-right">Margen</th></tr></thead>
+                            <tbody><template x-for="category in inventoryReport.categories" :key="category.name"><tr class="border-b border-slate-100">
+                                <td class="p-3" x-text="category.name"></td><td class="p-3 text-right" x-text="category.units"></td>
+                                <td class="p-3 text-right" x-text="formatEstimateMoney(category.investment)"></td><td class="p-3 text-right" x-text="formatEstimateMoney(category.revenue)"></td>
+                                <td class="p-3 text-right font-semibold" :class="category.profit < 0 ? 'text-rose-700' : ''" x-text="formatEstimateMoney(category.profit)"></td><td class="p-3 text-right" x-text="formatMargin(category.margin)"></td>
+                            </tr></template></tbody>
                         </table>
                     </div>
-                </div>
-
-                <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-                    <div class="p-4 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
-                        <h3 class="font-bold text-slate-800 flex items-center space-x-2">
-                            <i class="fa-solid fa-trophy text-amber-500"></i>
-                            <span>Productos con Mayor Margen de Ganancia (Top 10)</span>
-                        </h3>
-                    </div>
+                    <h4 class="text-sm font-semibold">Productos con mayor margen estimado (10)</h4>
                     <div class="overflow-x-auto">
-                        <table class="w-full text-left border-collapse text-sm min-w-[700px]">
-                            <thead>
-                                <tr class="bg-slate-100 text-slate-600 text-xs uppercase tracking-wider border-b border-slate-200">
-                                    <th class="p-4 font-semibold text-center">Cod</th>
-                                    <th class="p-4 font-semibold">Producto</th>
-                                    <th class="p-4 font-semibold">Categoría</th>
-                                    <th class="p-4 font-semibold text-right">Compra/u</th>
-                                    <th class="p-4 font-semibold text-right">Venta/u</th>
-                                    <th class="p-4 font-semibold text-right">Ganancia/u</th>
-                                    <th class="p-4 font-semibold text-center">Margen %</th>
-                                </tr>
-                            </thead>
-                            <tbody class="divide-y divide-slate-200">
-                                <template x-for="item in topProfitableItems" :key="item.id">
-                                    <tr class="hover:bg-slate-50 transition">
-                                        <td class="p-4 font-mono font-bold text-slate-700 text-center" x-text="item.code"></td>
-                                        <td class="p-4 font-semibold text-slate-800" x-text="item.name"></td>
-                                        <td class="p-4 text-xs text-slate-600">
-                                            <span class="bg-slate-100 px-2 py-1 rounded-full" x-text="item.category"></span>
-                                        </td>
-                                        <td class="p-4 text-right text-slate-600" x-text="formatMoney(item.buyPrice)"></td>
-                                        <td class="p-4 text-right font-semibold text-slate-900" x-text="formatMoney(item.price)"></td>
-                                        <td class="p-4 text-right font-bold text-emerald-600" x-text="formatMoney(item.price - item.buyPrice)"></td>
-                                        <td class="p-4 text-center">
-                                            <span class="px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800" x-text="item.marginPct + '%'"></span>
-                                        </td>
-                                    </tr>
-                                </template>
-                            </tbody>
+                        <table class="w-full min-w-[780px] text-sm text-left">
+                            <thead class="bg-slate-50"><tr><th class="p-3">Producto</th><th class="p-3">Presentación estimada</th><th class="p-3 text-right">Inversión</th><th class="p-3 text-right">Venta estimada</th><th class="p-3 text-right">Ganancia estimada</th><th class="p-3 text-right">Margen</th></tr></thead>
+                            <tbody><template x-for="row in inventoryReport.top" :key="row.id"><tr class="border-b border-slate-100">
+                                <td class="p-3" x-text="'[' + row.code + '] ' + row.name"></td>
+                                <td class="p-3 text-xs" x-text="row.boxes ? row.boxes + ' caja(s) + ' + row.looseUnits + ' unidades' : row.stock + ' unidades'"></td>
+                                <td class="p-3 text-right" x-text="formatEstimateMoney(row.investment)"></td><td class="p-3 text-right" x-text="formatEstimateMoney(row.revenue)"></td>
+                                <td class="p-3 text-right font-semibold" :class="row.profit < 0 ? 'text-rose-700' : ''" x-text="formatEstimateMoney(row.profit)"></td><td class="p-3 text-right" x-text="formatMargin(row.margin)"></td>
+                            </tr></template></tbody>
                         </table>
                     </div>
-                </div>
+                    <p x-show="inventoryReport.rows.length === 0" class="text-sm text-slate-500">No hay productos en el inventario.</p>
+                </section>
             </div>
 
         </main>
@@ -852,6 +803,8 @@
                 cart: [],
                 sales: [],
                 salesPeriod: 'day',
+                profitView: 'real',
+                inventoryScenario: 'units',
                 salesAnchor: window.ferroReports.businessDay(),
                 salesPeriods: [
                     { value: 'day', label: 'Día' }, { value: 'week', label: 'Semana' },
@@ -982,69 +935,17 @@
                     return this.inventory.reduce((sum, i) => sum + i.stock, 0);
                 },
 
-                get totalInvestment() {
-                    return this.inventory.reduce((sum, i) => sum + (i.buyPrice * i.stock), 0);
+                get inventoryReport() { return window.ferroInventoryReport(this.inventory, this.inventoryScenario); },
+                get totalInvestment() { return this.inventoryReport.investment; },
+                get totalEstimatedSales() { return this.inventoryReport.revenue; },
+                get totalPotentialProfit() { return this.inventoryReport.profit; },
+                get realSalesReport() { return window.ferroReports.salesReport(this.sales, this.salesPeriod, this.salesAnchor); },
+                get realSalesMargin() {
+                    const report = this.realSalesReport;
+                    return report.profit != null && report.revenue > 0 ? report.profit / report.revenue * 100 : null;
                 },
-
-                get totalEstimatedSales() {
-                    return this.inventory.reduce((sum, i) => sum + (i.price * i.stock), 0);
-                },
-
-                get totalPotentialProfit() {
-                    return this.inventory.reduce((sum, i) => {
-                        if (i.buyPrice > 0 && i.price > 0) {
-                            return sum + ((i.price - i.buyPrice) * i.stock);
-                        }
-                        return sum;
-                    }, 0);
-                },
-
-                get averageProfitMargin() {
-                    const validItems = this.inventory.filter(i => i.buyPrice > 0 && i.price > 0);
-                    if (validItems.length === 0) return '0.00';
-                    const totalMarginPct = validItems.reduce((sum, i) => {
-                        const margin = ((i.price - i.buyPrice) / i.price) * 100;
-                        return sum + margin;
-                    }, 0);
-                    return (totalMarginPct / validItems.length).toFixed(1);
-                },
-
-                get categoryProfitSummary() {
-                    const summary = {};
-                    this.categories.forEach(cat => {
-                        summary[cat] = { name: cat, count: 0, units: 0, investment: 0, sales: 0, profit: 0 };
-                    });
-
-                    this.inventory.forEach(item => {
-                        const cat = item.category || 'Otros';
-                        if (!summary[cat]) {
-                            summary[cat] = { name: cat, count: 0, units: 0, investment: 0, sales: 0, profit: 0 };
-                        }
-                        summary[cat].count++;
-                        summary[cat].units += item.stock;
-                        const inv = (item.buyPrice || 0) * item.stock;
-                        const sale = (item.price || 0) * item.stock;
-                        summary[cat].investment += inv;
-                        summary[cat].sales += sale;
-                        summary[cat].profit += (sale - inv);
-                    });
-
-                    return Object.values(summary).map(cat => {
-                        const margin = cat.sales > 0 ? ((cat.profit / cat.sales) * 100).toFixed(1) : '0.0';
-                        return { ...cat, margin: parseFloat(margin) };
-                    }).filter(cat => cat.count > 0);
-                },
-
-                get topProfitableItems() {
-                    return this.inventory
-                        .filter(i => i.buyPrice > 0 && i.price > 0 && i.price > i.buyPrice)
-                        .map(i => {
-                            const marginPct = (((i.price - i.buyPrice) / i.price) * 100).toFixed(1);
-                            return { ...i, marginPct: parseFloat(marginPct) };
-                        })
-                        .sort((a, b) => b.marginPct - a.marginPct)
-                        .slice(0, 10);
-                },
+                formatMargin(value) { return value == null ? '-' : value.toFixed(1) + '%'; },
+                formatEstimateMoney(value) { return value == null ? 'Pendiente' : this.formatMoney(value); },
 
                 get filteredPosProducts() {
                     return this.inventory.filter(item => {

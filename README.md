@@ -25,7 +25,7 @@ Sales and returns use Firestore transactions to update stock and sales together.
 
 ## Validation
 
-Run `node --test firebase-sync.test.cjs sales-report.test.cjs pricing.test.cjs`.
+Run `node --test firebase-sync.test.cjs sales-report.test.cjs pricing.test.cjs inventory-report.test.cjs`.
 The tests mock the Firebase SDK; a two-device sign-in check remains necessary
 to verify the complete browser and email delivery flow.
 
@@ -68,3 +68,14 @@ consumes `unitsPerBox` physical units. Both presentations can appear in one
 cart, with shared stock validation and separate returnable sale lines.
 An unset box price disables complete-box sales; existing products are unchanged
 until their box selling price is configured.
+
+## Profit dashboard
+
+Completed sales and potential inventory profit are separate views. Completed
+sales use recorded purchase costs, without substituting current inventory costs.
+Inventory projections support selling all units loose or complete boxes plus
+loose remainders. Products without a box price fall back to loose sales and are
+flagged. Categories and product rankings use the same projection calculations.
+Overall margin is total profit divided by total revenue, not an average of
+product percentages. Explicit zero costs and losses are included; missing
+values stay unknown.

@@ -38,6 +38,7 @@ function client(store = new Map()) {
     };
     const source = fs.readFileSync(__dirname + '/firebase-sync.js', 'utf8').replace(/^import .*;\r?\n/gm, '');
     vm.runInNewContext(fs.readFileSync(__dirname + '/pricing.js', 'utf8').replace(/^export /gm, ''), context);
+    vm.runInNewContext(fs.readFileSync(__dirname + '/inventory-report.js', 'utf8').replace(/^import .*;\r?\n/gm, '').replace(/^export /gm, ''), context);
     vm.runInNewContext(fs.readFileSync(__dirname + '/sales-report.js', 'utf8').replace(/^export /gm, ''), context);
     vm.runInNewContext(source, context);
     const api = window.ferroFirebase;

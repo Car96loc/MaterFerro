@@ -3,9 +3,11 @@ import { getAuth, onAuthStateChanged, sendSignInLinkToEmail, isSignInWithEmailLi
 import { getFirestore, collection, doc, setDoc, deleteDoc, onSnapshot, runTransaction } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js';
 import { businessDay, parseSaleDate, saleTotals, itemTotals, salesReport, displaySaleDate, withInventoryCosts } from './sales-report.js?v=box-2';
 import { lineAmount, productValues, stockUnits, maxCartQuantity } from './pricing.js?v=box-2';
+import { inventoryReport } from './inventory-report.js?v=margins-1';
 
 window.ferroReports = { businessDay, saleTotals, itemTotals, salesReport, displaySaleDate, withInventoryCosts };
 window.ferroPricing = { lineAmount, productValues, stockUnits, maxCartQuantity };
+window.ferroInventoryReport = inventoryReport;
 
 const app = initializeApp({
     apiKey: 'AIzaSyBJRvyFuIrqrA4QrEqvBL6mf5vFMFmGu_Y',
