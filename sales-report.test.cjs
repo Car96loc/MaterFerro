@@ -54,3 +54,28 @@ test('invalid dates remain available in all-history view', () => {
     assert.equal(report.sales.length, 1);
     assert.equal(report.invalidDates, 1);
 });
+
+test('three units bought at 5 and sold at 8 separate investment 15 from profit 9', () => {
+    const item = { qty: 3, buyPrice: 5, price: 8, costKnown: true };
+    const totals = reports.itemTotals(item);
+    assert.equal(totals.revenue, 24);
+    assert.equal(totals.cost, 15);
+    assert.equal(totals.unitProfit, 3);
+    assert.equal(totals.profit, 9);
+    assert.equal(reports.saleTotals({ total: 24, items: [item] }).profit, 9);
+});
+
+test('old sales estimate from current purchase price without rewriting history or overriding recorded costs', () => {
+    const original = { date: '2026-10-12T15:00:00Z', total: 24, items: [{ id: '1', qty: 3, price: 8 }] };
+    const inventory = [{ id: '1', buyPrice: 5 }];
+    const enriched = reports.withInventoryCosts(original, inventory);
+    assert.equal(original.items[0].buyPrice, undefined);
+    assert.equal(reports.saleTotals(enriched).cost, 15);
+    assert.equal(reports.saleTotals(enriched).profit, 9);
+    assert.equal(reports.saleTotals(enriched).estimated, true);
+    assert.equal(reports.salesReport([enriched], 'day', '2026-10-12').estimatedSales, 1);
+    const historical = { total: 24, items: [{ id: '1', qty: 3, price: 8, buyPrice: 4, costKnown: true }] };
+    assert.equal(reports.saleTotals(reports.withInventoryCosts(historical, inventory)).cost, 12);
+    assert.equal(reports.saleTotals(reports.withInventoryCosts(historical, inventory)).estimated, false);
+    assert.equal(reports.saleTotals(reports.withInventoryCosts(original, [])).cost, null);
+});

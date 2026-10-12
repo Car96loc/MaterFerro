@@ -1,9 +1,9 @@
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js';
 import { getAuth, onAuthStateChanged, sendSignInLinkToEmail, isSignInWithEmailLink, signInWithEmailLink, signOut } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js';
 import { getFirestore, collection, doc, setDoc, deleteDoc, onSnapshot, runTransaction } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js';
-import { businessDay, parseSaleDate, saleTotals, itemTotals, salesReport, displaySaleDate } from './sales-report.js';
+import { businessDay, parseSaleDate, saleTotals, itemTotals, salesReport, displaySaleDate, withInventoryCosts } from './sales-report.js?v=investment-1';
 
-window.ferroReports = { businessDay, saleTotals, itemTotals, salesReport, displaySaleDate };
+window.ferroReports = { businessDay, saleTotals, itemTotals, salesReport, displaySaleDate, withInventoryCosts };
 
 const app = initializeApp({
     apiKey: 'AIzaSyBJRvyFuIrqrA4QrEqvBL6mf5vFMFmGu_Y',
@@ -119,7 +119,7 @@ window.ferroFirebase = {
                 products.push({ productRef, stock: snapshot.data().stock - qty });
                 const product = snapshot.data();
                 recordedItems.push({ ...item, code: product.code, name: product.name, category: product.category,
-                    buyPrice: Number(product.buyPrice || 0), costKnown: Number(product.buyPrice) > 0 || Number(item.price) === 0,
+                    buyPrice: Number(product.buyPrice || 0), costKnown: product.buyPrice != null && Number.isFinite(Number(product.buyPrice)) && Number(product.buyPrice) >= 0,
                     stockBefore: Number(product.stock), stockAfter: Number(product.stock) - qty });
             }
             for (const product of products) transaction.update(product.productRef, { stock: product.stock });

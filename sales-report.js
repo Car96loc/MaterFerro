@@ -37,12 +37,23 @@ export function periodRange(period, anchor) {
     return { start: startKey, end: endKey, label: startKey === endKey ? display(startKey) : `${display(startKey)} - ${display(endKey)}` };
 }
 
+export function withInventoryCosts(sale, inventory = []) {
+    if (!sale) return sale;
+    return { ...sale, items: (sale.items || []).map(item => {
+        if (itemTotals(item).known) return item;
+        const product = inventory.find(product => String(product.id) === String(item.id));
+        if (!product || !Number.isFinite(Number(product.buyPrice)) || Number(product.buyPrice) <= 0) return item;
+        return { ...item, buyPrice: Number(product.buyPrice), costKnown: true, costSource: 'inventory-estimate' };
+    }) };
+}
+
 export function itemTotals(item) {
     const quantity = Number(item.qty || 0);
     const revenue = Number(item.price || 0) * quantity;
     const known = item.costKnown !== false && item.buyPrice != null && Number.isFinite(Number(item.buyPrice)) && Number(item.buyPrice) >= 0;
     const cost = known ? Number(item.buyPrice) * quantity : null;
-    return { revenue, cost, profit: known ? revenue - cost : null, known };
+    return { revenue, cost, profit: known ? revenue - cost : null, unitProfit: known ? Number(item.price || 0) - Number(item.buyPrice) : null,
+        known, estimated: known && item.costSource === 'inventory-estimate' };
 }
 
 export function saleTotals(sale) {
@@ -50,7 +61,8 @@ export function saleTotals(sale) {
     const revenue = Number(sale?.total || 0);
     const known = items.length > 0 && items.every(item => item.known);
     const recordedCost = items.reduce((sum, item) => sum + (item.cost || 0), 0);
-    return { revenue, cost: known ? recordedCost : null, profit: known ? revenue - recordedCost : null, known, missingItems: items.filter(item => !item.known).length };
+    return { revenue, cost: known ? recordedCost : null, profit: known ? revenue - recordedCost : null, known,
+        estimated: items.some(item => item.estimated), missingItems: items.filter(item => !item.known).length };
 }
 
 export function salesReport(sales, period, anchor) {
@@ -71,6 +83,7 @@ export function salesReport(sales, period, anchor) {
     }
     return { range, sales: filtered, revenue, cost, profit: known ? revenue - cost : null, known,
         missingSales: totals.filter(total => !total.known).length,
+        estimatedSales: totals.filter(total => total.estimated).length,
         invalidDates: sales.filter(sale => !businessDay(sale.date)).length,
         days: [...days].sort(([a], [b]) => b.localeCompare(a)).map(([day, rows]) => {
             const totals = rows.map(saleTotals);

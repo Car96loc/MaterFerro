@@ -45,7 +45,9 @@ The sales history filters by calendar day, Monday-to-Sunday week, month, year,
 or all history. Calendar boundaries use America/Bogota. Summaries show revenue,
 product cost and gross profit; overhead expenses are not included.
 Each new sale stores product cost, category and stock before/after checkout.
-Historical costs never use the current inventory price. Old records without
-costs display an unavailable cost/profit rather than an invented value.
+Recorded historical costs never use the current inventory price. Old records
+without costs can use the matching product's current purchase price as a clearly
+labeled estimate; this does not modify the original sale. If that product/cost
+is unavailable, cost and profit remain unknown.
 Returns recalculate amounts for the remaining items. Excel exports include
 the selected period's summary and individual product rows.
