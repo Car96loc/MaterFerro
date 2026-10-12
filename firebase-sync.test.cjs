@@ -37,6 +37,7 @@ function client(store = new Map()) {
         }
     };
     const source = fs.readFileSync(__dirname + '/firebase-sync.js', 'utf8').replace(/^import .*;\r?\n/gm, '');
+    vm.runInNewContext(fs.readFileSync(__dirname + '/pricing.js', 'utf8').replace(/^export /gm, ''), context);
     vm.runInNewContext(fs.readFileSync(__dirname + '/sales-report.js', 'utf8').replace(/^export /gm, ''), context);
     vm.runInNewContext(source, context);
     const api = window.ferroFirebase;
@@ -131,4 +132,24 @@ test('partial return recalculates stored cost and profit using historical prices
     assert.equal(result.grossProfit, 7);
     assert.equal(result.itemsCount, 1);
     assert.equal(c.store.get(key('inventory', 'p1')).stock, 3);
+});
+
+test('box product persists and odd sale charges 8 cents, restores correct stock on return', async () => {
+    const c = client();
+    await c.login();
+    const product = { id: 'bolts', code: '61', name: 'Pernos', category: 'Tornilleria',
+        boxMode: true, unitsPerBox: 100, boxCost: 1, saleUnits: 2, salePrice: 0.05,
+        buyPrice: 0.01, price: 0.025, stock: 100 };
+    await c.api.saveProduct(product, { create: true });
+    assert.equal(c.store.get(key('inventory', 'bolts')).saleUnits, 2);
+    await c.api.completeSale({ id: 'odd', total: 0.08, itemsCount: 3, items: [{ ...product, qty: 3 }] });
+    const recorded = c.store.get(key('sales', 'odd'));
+    assert.equal(recorded.total, 0.08);
+    assert.equal(recorded.items[0].lineTotal, 0.08);
+    assert.equal(recorded.totalCost, 0.03);
+    assert.equal(recorded.grossProfit, 0.05);
+    assert.equal(c.store.get(key('inventory', 'bolts')).stock, 97);
+    await c.api.returnSale('odd', 'bolts');
+    assert.equal(c.store.get(key('inventory', 'bolts')).stock, 100);
+    assert.equal(c.store.has(key('sales', 'odd')), false);
 });

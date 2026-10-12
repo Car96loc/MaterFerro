@@ -79,3 +79,10 @@ test('old sales estimate from current purchase price without rewriting history o
     assert.equal(reports.saleTotals(reports.withInventoryCosts(historical, inventory)).estimated, false);
     assert.equal(reports.saleTotals(reports.withInventoryCosts(original, [])).cost, null);
 });
+
+test('profit uses actual rounded charge for odd groups', () => {
+    const item = { qty: 3, price: 0.025, buyPrice: 0.01, lineTotal: 0.08, costKnown: true };
+    assert.equal(reports.itemTotals(item).revenue, 0.08);
+    assert.equal(reports.itemTotals(item).cost, 0.03);
+    assert.equal(reports.itemTotals(item).profit, 0.05);
+});

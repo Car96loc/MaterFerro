@@ -1,9 +1,11 @@
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js';
 import { getAuth, onAuthStateChanged, sendSignInLinkToEmail, isSignInWithEmailLink, signInWithEmailLink, signOut } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js';
 import { getFirestore, collection, doc, setDoc, deleteDoc, onSnapshot, runTransaction } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js';
-import { businessDay, parseSaleDate, saleTotals, itemTotals, salesReport, displaySaleDate, withInventoryCosts } from './sales-report.js?v=investment-1';
+import { businessDay, parseSaleDate, saleTotals, itemTotals, salesReport, displaySaleDate, withInventoryCosts } from './sales-report.js?v=box-1';
+import { lineAmount, productValues } from './pricing.js?v=box-1';
 
 window.ferroReports = { businessDay, saleTotals, itemTotals, salesReport, displaySaleDate, withInventoryCosts };
+window.ferroPricing = { lineAmount, productValues };
 
 const app = initializeApp({
     apiKey: 'AIzaSyBJRvyFuIrqrA4QrEqvBL6mf5vFMFmGu_Y',
@@ -97,7 +99,9 @@ window.ferroFirebase = {
             if (!create && !previous.exists()) throw new Error('Este producto ya fue eliminado en otro dispositivo.');
             transaction.set(productRef, {
             code: String(item.code), name: String(item.name), category: String(item.category),
-            buyPrice: Number(item.buyPrice || 0), price: Number(item.price || 0), stock: Number(item.stock || 0)
+            buyPrice: Number(item.buyPrice || 0), price: Number(item.price || 0), stock: Number(item.stock || 0),
+            boxMode: !!item.boxMode, unitsPerBox: Number(item.unitsPerBox || 1), boxCost: Number(item.boxCost ?? item.buyPrice ?? 0),
+            saleUnits: Number(item.saleUnits || 1), salePrice: Number(item.salePrice ?? item.price ?? 0)
             });
         }));
     },
@@ -118,12 +122,12 @@ window.ferroFirebase = {
                 if (!snapshot.exists() || !Number.isInteger(qty) || qty <= 0 || snapshot.data().stock < qty) throw new Error('Existencias insuficientes para ' + item.name);
                 products.push({ productRef, stock: snapshot.data().stock - qty });
                 const product = snapshot.data();
-                recordedItems.push({ ...item, code: product.code, name: product.name, category: product.category,
+                recordedItems.push({ ...item, lineTotal: lineAmount(item), code: product.code, name: product.name, category: product.category,
                     buyPrice: Number(product.buyPrice || 0), costKnown: product.buyPrice != null && Number.isFinite(Number(product.buyPrice)) && Number(product.buyPrice) >= 0,
                     stockBefore: Number(product.stock), stockAfter: Number(product.stock) - qty });
             }
             for (const product of products) transaction.update(product.productRef, { stock: product.stock });
-            const recordedSale = { ...sale, items: recordedItems, reportVersion: 1 };
+            const recordedSale = { ...sale, total: recordedItems.reduce((sum, item) => sum + Math.round(item.lineTotal * 100), 0) / 100, items: recordedItems, reportVersion: 2 };
             const totals = saleTotals(recordedSale);
             transaction.set(saleRef, { ...recordedSale, totalCost: totals.cost, grossProfit: totals.profit });
         }));
@@ -146,7 +150,7 @@ window.ferroFirebase = {
             const items = sale.items.filter(item => !returned.includes(item));
             if (!items.length) transaction.delete(saleRef);
             else {
-                const total = items.reduce((sum, item) => sum + Number(item.qty) * Number(item.price), 0);
+                const total = items.reduce((sum, item) => sum + Math.round(lineAmount(item) * 100), 0) / 100;
                 const totals = saleTotals({ items, total });
                 transaction.update(saleRef, { items, itemsCount: items.reduce((sum, item) => sum + Number(item.qty), 0), total, totalCost: totals.cost, grossProfit: totals.profit });
             }

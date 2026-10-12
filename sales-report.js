@@ -49,7 +49,7 @@ export function withInventoryCosts(sale, inventory = []) {
 
 export function itemTotals(item) {
     const quantity = Number(item.qty || 0);
-    const revenue = Number(item.price || 0) * quantity;
+    const revenue = Number.isFinite(item.lineTotal) ? item.lineTotal : Number(item.price || 0) * quantity;
     const known = item.costKnown !== false && item.buyPrice != null && Number.isFinite(Number(item.buyPrice)) && Number(item.buyPrice) >= 0;
     const cost = known ? Number(item.buyPrice) * quantity : null;
     return { revenue, cost, profit: known ? revenue - cost : null, unitProfit: known ? Number(item.price || 0) - Number(item.buyPrice) : null,

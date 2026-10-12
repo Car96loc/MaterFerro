@@ -17,7 +17,7 @@
         ::-webkit-scrollbar-track { background: #f1f5f9; }
         ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
     </style>
-    <script type="module" src="./firebase-sync.js?v=investment-1"></script>
+    <script type="module" src="./firebase-sync.js?v=box-1"></script>
 </head>
 <body class="bg-slate-100 text-slate-800 h-full flex flex-col overflow-x-hidden" x-data="ferroApp()">
     <div x-cloak x-show="!authReady" class="fixed inset-0 z-50 bg-slate-100 flex items-center justify-center p-4">
@@ -164,7 +164,7 @@
                                     <h3 class="font-semibold text-xs md:text-sm text-slate-800 group-hover:text-amber-600 transition line-clamp-2" x-text="item.name"></h3>
                                 </div>
                                 <div class="mt-3 flex items-center justify-between">
-                                    <span class="font-bold text-slate-900 text-sm md:text-base" x-text="formatMoney(item.price)"></span>
+                                    <span class="font-bold text-slate-900 text-sm md:text-base" x-text="productPriceLabel(item)"></span>
                                     <button class="bg-amber-100 text-amber-700 group-hover:bg-amber-500 group-hover:text-slate-900 w-7 h-7 md:w-8 md:h-8 rounded-lg flex items-center justify-center transition">
                                         <i class="fa-solid fa-plus text-xs"></i>
                                     </button>
@@ -204,8 +204,8 @@
                                         <span class="text-[10px] font-mono font-bold bg-slate-200 text-slate-700 px-1 py-0.5 rounded" x-text="'#' + cartItem.code"></span>
                                         <h4 class="text-xs font-bold text-slate-800 line-clamp-1" x-text="cartItem.name"></h4>
                                     </div>
-                                    <div class="text-xs text-slate-500" x-text="formatMoney(cartItem.price) + ' c/u'"></div>
-                                    <div class="text-xs font-bold text-emerald-600 mt-0.5" x-text="'Subtotal: ' + formatMoney(cartItem.price * (cartItem.qty || 0))"></div>
+                                    <div class="text-xs text-slate-500" x-text="productPriceLabel(cartItem)"></div>
+                                    <div class="text-xs font-bold text-emerald-600 mt-0.5" x-text="'Subtotal: ' + formatMoney(lineAmount(cartItem))"></div>
                                 </div>
                                 <div class="flex items-center space-x-2">
                                     <div class="flex items-center border border-slate-300 rounded-lg bg-white overflow-hidden shadow-sm">
@@ -289,7 +289,7 @@
                                     <td class="p-3 text-center font-bold text-slate-700" x-text="item.stock"></td>
                                     <td class="p-3 text-right text-slate-600" x-text="item.buyPrice > 0 ? formatMoney(item.buyPrice) : 'Pendiente'"></td>
                                     <td class="p-3 text-right font-bold text-slate-700" x-text="item.buyPrice > 0 ? formatMoney(item.buyPrice * item.stock) : '—'"></td>
-                                    <td class="p-3 text-right font-semibold text-slate-900" x-text="item.price > 0 ? formatMoney(item.price) : 'Pendiente'"></td>
+                                    <td class="p-3 text-right font-semibold text-slate-900" x-text="item.price > 0 ? productPriceLabel(item) : 'Pendiente'"></td>
                                     <td class="p-3 text-right font-bold text-slate-900" x-text="item.price > 0 ? formatMoney(item.price * item.stock) : '—'"></td>
                                     <td class="p-3 text-right font-bold text-emerald-600" x-text="item.buyPrice > 0 && item.price > 0 ? formatMoney((item.price - item.buyPrice) * item.stock) : '—'"></td>
                                     <td class="p-3 text-center space-x-1">
@@ -531,18 +531,47 @@
                     <label class="block text-xs font-semibold text-slate-700 uppercase mb-1">Nombre del Producto</label>
                     <input type="text" x-model="productForm.name" required placeholder="Ej. Taladro Percutor 600W" class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-500">
                 </div>
-                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <label class="flex items-center gap-2 text-sm font-semibold text-slate-700">
+                    <input type="checkbox" x-model="productForm.boxMode" class="w-4 h-4 accent-emerald-700">
+                    Compra por caja / venta por unidades
+                </label>
+                <div x-show="productForm.boxMode" class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <label class="text-xs font-semibold text-slate-700">Unidades por caja
+                        <input type="number" min="1" step="1" x-model.number="productForm.unitsPerBox" :required="productForm.boxMode" :disabled="!productForm.boxMode" class="block mt-1 w-full border border-slate-300 rounded px-3 py-2 text-sm">
+                    </label>
+                    <label class="text-xs font-semibold text-slate-700">Costo de la caja ($)
+                        <input type="number" min="0" step="0.01" x-model.number="productForm.boxCost" :required="productForm.boxMode" :disabled="!productForm.boxMode" class="block mt-1 w-full border border-slate-300 rounded px-3 py-2 text-sm">
+                    </label>
+                    <label x-show="!isEditing" class="text-xs font-semibold text-slate-700">Cantidad de cajas
+                        <input type="number" min="1" step="1" x-model.number="productForm.boxCount" :required="productForm.boxMode && !isEditing" :disabled="!productForm.boxMode || isEditing" class="block mt-1 w-full border border-slate-300 rounded px-3 py-2 text-sm">
+                    </label>
+                    <label class="text-xs font-semibold text-slate-700">Unidades por precio de venta
+                        <input type="number" min="1" step="1" x-model.number="productForm.saleUnits" :required="productForm.boxMode" :disabled="!productForm.boxMode" class="block mt-1 w-full border border-slate-300 rounded px-3 py-2 text-sm">
+                    </label>
+                    <label class="text-xs font-semibold text-slate-700">Precio de ese grupo ($)
+                        <input type="number" min="0" step="0.01" x-model.number="productForm.salePrice" :required="productForm.boxMode" :disabled="!productForm.boxMode" class="block mt-1 w-full border border-slate-300 rounded px-3 py-2 text-sm">
+                    </label>
+                    <label x-show="isEditing" class="text-xs font-semibold text-slate-700">Existencias actuales en unidades
+                        <input type="number" min="0" step="1" x-model.number="productForm.stock" :required="productForm.boxMode && isEditing" :disabled="!productForm.boxMode || !isEditing" class="block mt-1 w-full border border-slate-300 rounded px-3 py-2 text-sm">
+                    </label>
+                    <dl class="sm:col-span-2 grid grid-cols-3 gap-2 text-xs py-2 border-y border-slate-200">
+                        <div><dt>Compra por unidad</dt><dd class="font-bold" x-text="boxPreview ? formatUnitMoney(boxPreview.buyPrice) : '-'"></dd></div>
+                        <div><dt>Venta por unidad</dt><dd class="font-bold" x-text="boxPreview ? formatUnitMoney(boxPreview.price) : '-'"></dd></div>
+                        <div><dt>Unidades en stock</dt><dd class="font-bold" x-text="boxPreview?.stock ?? '-'"></dd></div>
+                    </dl>
+                </div>
+                <div x-show="!productForm.boxMode" class="grid grid-cols-1 sm:grid-cols-3 gap-4">
                     <div>
                         <label class="block text-xs font-semibold text-slate-700 uppercase mb-1">Compra Unit. ($)</label>
-                        <input type="number" step="0.0001" min="0" x-model.number="productForm.buyPrice" required class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-500">
+                        <input type="number" step="0.0001" min="0" x-model.number="productForm.buyPrice" :required="!productForm.boxMode" :disabled="productForm.boxMode" class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-500">
                     </div>
                     <div>
                         <label class="block text-xs font-semibold text-slate-700 uppercase mb-1">Venta Unit. ($)</label>
-                        <input type="number" step="0.01" min="0" x-model.number="productForm.price" required class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-500">
+                        <input type="number" step="0.0001" min="0" x-model.number="productForm.price" :required="!productForm.boxMode" :disabled="productForm.boxMode" class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-500">
                     </div>
                     <div>
                         <label class="block text-xs font-semibold text-slate-700 uppercase mb-1">Cantidad / Stock</label>
-                        <input type="number" min="0" x-model.number="productForm.stock" required class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-500">
+                        <input type="number" min="0" step="1" x-model.number="productForm.stock" :required="!productForm.boxMode" :disabled="productForm.boxMode" class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-500">
                     </div>
                 </div>
                 <div class="flex justify-end space-x-3 pt-4 border-t border-slate-200">
@@ -823,6 +852,7 @@
                 ],
 
                 productForm: {
+                    boxMode: false, unitsPerBox: 100, boxCost: 0, boxCount: 1, saleUnits: 2, salePrice: 0.05,
                     id: null,
                     code: '',
                     name: '',
@@ -892,6 +922,15 @@
 
                 formatUnitMoney(amount) {
                     return '$' + Number(amount || 0).toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 4 });
+                },
+
+                lineAmount(item) { return window.ferroPricing.lineAmount(item); },
+                productPriceLabel(item) {
+                    return item.boxMode ? this.formatMoney(item.salePrice) + ' / ' + item.saleUnits + ' unid.' : this.formatUnitMoney(item.price);
+                },
+                get boxPreview() {
+                    try { return window.ferroPricing.productValues(this.productForm, this.isEditing); }
+                    catch { return null; }
                 },
 
                 displaySaleDate(value) { return window.ferroReports.displaySaleDate(value); },
@@ -1023,6 +1062,9 @@
                             code: product.code,
                             name: product.name,
                             price: product.price,
+                            boxMode: !!product.boxMode,
+                            saleUnits: Number(product.saleUnits || 1),
+                            salePrice: Number(product.salePrice ?? product.price),
                             qty: 1,
                             maxStock: product.stock
                         });
@@ -1068,7 +1110,7 @@
                 },
 
                 get cartTotal() {
-                    return this.cart.reduce((sum, item) => sum + (item.price * (parseInt(item.qty) || 0)), 0);
+                    return this.cart.reduce((sum, item) => sum + Math.round(this.lineAmount(item) * 100), 0) / 100;
                 },
 
                 openProductModal() {
@@ -1081,6 +1123,7 @@
                     this.productForm = { 
                         id: null, 
                         code: (maxCodeNum + 1).toString(),
+                        boxMode: false, unitsPerBox: 100, boxCost: 0, boxCount: 1, saleUnits: 2, salePrice: 0.05,
                         name: '',
                         category: '',
                         buyPrice: 0,
@@ -1092,7 +1135,7 @@
 
                 editProduct(item) {
                     this.isEditing = true;
-                    this.productForm = { ...item };
+                    this.productForm = { boxMode: false, unitsPerBox: 100, boxCost: 0, boxCount: 1, saleUnits: 2, salePrice: 0.05, ...item };
                     this.isProductModalOpen = true;
                 },
 
@@ -1106,14 +1149,16 @@
                         return;
                     }
 
+                    let calculated;
+                    try { calculated = window.ferroPricing.productValues(this.productForm, this.isEditing); }
+                    catch (error) { this.showNotification(error.message); return; }
+
                     const prodData = {
                         id: this.productForm.id ? String(this.productForm.id) : String(this.productForm.code),
                         code: String(this.productForm.code),
                         name: String(this.productForm.name).trim(),
                         category: String(this.productForm.category),
-                        buyPrice: Number(this.productForm.buyPrice || 0),
-                        price: Number(this.productForm.price || 0),
-                        stock: Number(this.productForm.stock || 0)
+                        ...calculated
                     };
 
                     try {

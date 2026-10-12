@@ -25,7 +25,7 @@ Sales and returns use Firestore transactions to update stock and sales together.
 
 ## Validation
 
-Run `node --test firebase-sync.test.cjs sales-report.test.cjs`.
+Run `node --test firebase-sync.test.cjs sales-report.test.cjs pricing.test.cjs`.
 The tests mock the Firebase SDK; a two-device sign-in check remains necessary
 to verify the complete browser and email delivery flow.
 
@@ -51,3 +51,13 @@ labeled estimate; this does not modify the original sale. If that product/cost
 is unavailable, cost and profit remain unknown.
 Returns recalculate amounts for the remaining items. Excel exports include
 the selected period's summary and individual product rows.
+
+## Box purchases
+
+Enable box purchasing in the product form to enter units per box, box cost,
+number of boxes, and the price for a configurable number of selling units.
+Stock is always tracked in individual units. Editing a product preserves its
+remaining unit stock instead of resetting it to full boxes.
+The checkout rounds each product's subtotal to cents, then sums those cents.
+At 2 units for $0.05, 3 units cost $0.08. Recorded line totals are also used
+for historical profit, exports, and returns.
