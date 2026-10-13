@@ -11,6 +11,7 @@ function client(store = new Map()) {
     let authCallback;
     const context = {
         console: { error() {} }, window, navigator,
+        readDeviceCache() { return null; }, saveDeviceCache() {}, clearDeviceCache() {},
         location: { href: 'https://car96loc.github.io/MaterFerro/', pathname: '/MaterFerro/' },
         history: { replaceState() {} },
         document: { createElement() { return {}; }, head: { appendChild() {} } },

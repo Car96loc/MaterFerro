@@ -4,6 +4,7 @@ import { getFirestore, collection, doc, setDoc, deleteDoc, onSnapshot, runTransa
 import { businessDay, parseSaleDate, saleTotals, itemTotals, salesReport, displaySaleDate, withInventoryCosts } from './sales-report.js?v=box-2';
 import { lineAmount, productValues, stockUnits, maxCartQuantity } from './pricing.js?v=box-2';
 import { inventoryReport } from './inventory-report.js?v=margins-1';
+import { readDeviceCache, saveDeviceCache, clearDeviceCache } from './device-cache.js?v=1';
 
 window.ferroReports = { businessDay, saleTotals, itemTotals, salesReport, displaySaleDate, withInventoryCosts };
 window.ferroPricing = { lineAmount, productValues, stockUnits, maxCartQuantity };
@@ -51,7 +52,12 @@ function start(kind) {
     listeners.set(kind, onSnapshot(collection(db, ...path, kind), { includeMetadataChanges: true }, snapshot => {
         snapshots.set(kind, snapshot.metadata);
         let items = snapshot.docs.map(d => ({ ...d.data(), id: d.id }));
+        if (snapshot.metadata.fromCache && !items.length && readDeviceCache()?.[kind]?.length) {
+            status();
+            return;
+        }
         if (kind === 'sales') items.sort((a, b) => (parseSaleDate(b.date)?.getTime() || 0) - (parseSaleDate(a.date)?.getTime() || 0));
+        saveDeviceCache(kind, items);
         subscriptions.get(kind)(items);
         status();
     }, error => { failedSubscriptions.add(kind); fail(error); }));
@@ -65,6 +71,7 @@ async function write(action) {
 }
 
 window.ferroFirebase = {
+    readDeviceCache,
     async initAuth(callback, message) {
         if (isSignInWithEmailLink(auth, location.href)) {
             try {
@@ -72,6 +79,7 @@ window.ferroFirebase = {
                 await signInWithEmailLink(auth, owner, location.href);
                 history.replaceState(null, '', location.pathname);
             } catch (error) {
+                history.replaceState(null, '', location.pathname);
                 message('El enlace de acceso no es válido o ha vencido. Solicita uno nuevo.');
             }
         }
@@ -81,6 +89,7 @@ window.ferroFirebase = {
             snapshots.clear();
             failedSubscriptions.clear();
             allowed = !!user && user.email === owner && user.emailVerified;
+            if (!allowed) clearDeviceCache();
             callback(allowed ? user : null);
             if (user && !allowed) { message('Esta cuenta no tiene acceso al inventario.'); await signOut(auth); }
             for (const kind of subscriptions.keys()) start(kind);
@@ -91,7 +100,7 @@ window.ferroFirebase = {
         if (email.trim().toLowerCase() !== owner) throw new Error('Usa el correo autorizado para este inventario.');
         await sendSignInLinkToEmail(auth, owner, { url: 'https://car96loc.github.io/MaterFerro/', handleCodeInApp: true });
     },
-    logout() { return signOut(auth); },
+    async logout() { await signOut(auth); clearDeviceCache(); },
     subscribeInventory(callback) { subscriptions.set('inventory', callback); start('inventory'); },
     subscribeSales(callback) { subscriptions.set('sales', callback); start('sales'); },
     saveProduct(item, { create = false } = {}) {

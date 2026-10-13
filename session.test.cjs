@@ -3,13 +3,14 @@ const fs = require('node:fs');
 const vm = require('node:vm');
 const { test } = require('node:test');
 
-function application() {
+function application(saved = null) {
     let resolveAuth;
     let authError;
     const window = {
         addEventListener() {},
         ferroReports: { businessDay: () => '2026-10-12' },
         ferroFirebase: {
+            readDeviceCache() { return saved; },
             initAuth(callback, error) { resolveAuth = callback; authError = error; },
             subscribeInventory() {}, subscribeSales() {}
         }
@@ -53,4 +54,16 @@ test('authentication errors leave login available instead of waiting forever', (
     assert.equal(app.authPending, false);
     assert.equal(app.authReady, false);
     assert.equal(app.authMessage, 'No se pudo iniciar sesion.');
+});
+
+test('saved inventory and sales render before authentication or network resolves', () => {
+    const saved = { inventory: [{ id: 'p1', stock: 60 }], sales: [{ id: 's1' }] };
+    const { app, resolveAuth } = application(saved);
+    assert.equal(app.inventory[0].stock, 60);
+    assert.equal(app.sales[0].id, 's1');
+    assert.equal(app.authReady, false);
+    resolveAuth({ email: 'carzunsan@gmail.com' });
+    assert.equal(app.inventory[0].stock, 60);
+    resolveAuth(null);
+    assert.equal(app.inventory.length, 0);
 });
