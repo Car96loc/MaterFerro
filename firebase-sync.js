@@ -1,5 +1,5 @@
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js';
-import { getAuth, onAuthStateChanged, sendSignInLinkToEmail, isSignInWithEmailLink, signInWithEmailLink, signOut } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js';
+import { getAuth, setPersistence, browserLocalPersistence, onAuthStateChanged, sendSignInLinkToEmail, isSignInWithEmailLink, signInWithEmailLink, signOut } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js';
 import { getFirestore, collection, doc, setDoc, deleteDoc, onSnapshot, runTransaction } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js';
 import { businessDay, parseSaleDate, saleTotals, itemTotals, salesReport, displaySaleDate, withInventoryCosts } from './sales-report.js?v=box-2';
 import { lineAmount, productValues, stockUnits, maxCartQuantity } from './pricing.js?v=box-2';
@@ -68,6 +68,7 @@ window.ferroFirebase = {
     async initAuth(callback, message) {
         if (isSignInWithEmailLink(auth, location.href)) {
             try {
+                await setPersistence(auth, browserLocalPersistence);
                 await signInWithEmailLink(auth, owner, location.href);
                 history.replaceState(null, '', location.pathname);
             } catch (error) {
