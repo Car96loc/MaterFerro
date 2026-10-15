@@ -40,6 +40,14 @@ test('actual app searches both views and removes all presentations of selected p
     assert.equal(app.cart.length, 1);
     app.openPhoto({ name: 'Foto', photo: 'data:image/jpeg;base64,YWJj' });
     assert.equal(app.photoPreview.name, 'Foto');
+    app.inventory[0].photo = 'data:image/jpeg;base64,YWJj';
+    const cartItem = { id: '1', name: 'Silicon', qty: 2 };
+    assert.equal(app.cartProduct(cartItem).photo, app.inventory[0].photo);
+    assert.equal(cartItem.photo, undefined);
+    assert.equal(app.cartProduct({ id: 'deleted', name: 'Anterior' }).name, 'Anterior');
+    assert.match(html, /product-tile-photo/);
+    assert.match(html, /Código: /);
+    assert.doesNotMatch(html, /x-text="'#' \+/);
 });
 
 test('photo decoder rejects unsupported files before attempting processing', async () => {

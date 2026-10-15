@@ -13,11 +13,15 @@
     <style>
         body { font-family: 'Inter', sans-serif; }
         [x-cloak] { display: none !important; }
+        .product-grid { align-content: start; align-items: start; }
+        .product-tile-photo { aspect-ratio: 4 / 3; }
+        .product-tile-body { display: flex; flex-direction: column; gap: 4px; padding: 7px; }
+        .product-tile-name { font-size: 12px; line-height: 16px; height: 32px; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow-wrap: anywhere; }
         ::-webkit-scrollbar { width: 4px; height: 4px; }
         ::-webkit-scrollbar-track { background: #f1f5f9; }
         ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
     </style>
-    <script type="module" src="./firebase-sync.js?v=products-2"></script>
+    <script type="module" src="./firebase-sync.js?v=compact-photos-1"></script>
 </head>
 <body class="bg-slate-100 text-slate-800 h-full flex flex-col overflow-x-hidden" x-data="ferroApp()">
     <div x-cloak x-show="!authPending && !authReady" class="fixed inset-0 z-50 bg-slate-100 flex items-center justify-center p-4">
@@ -140,7 +144,7 @@
                     <div class="p-3 md:p-4 border-b border-slate-200 bg-slate-50 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
                         <div class="relative flex-1">
                             <i class="fa-solid fa-search absolute left-3.5 top-3 text-slate-400"></i>
-                            <input x-ref="posSearchInput" type="text" x-model="posSearch" placeholder="Buscar por código (#) o nombre de producto..." class="w-full pl-10 pr-12 py-2 bg-white border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-500">
+                            <input x-ref="posSearchInput" type="text" x-model="posSearch" placeholder="Buscar por código o nombre de producto..." class="w-full pl-10 pr-12 py-2 bg-white border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-500">
                             <button type="button" x-cloak x-show="posSearch" @click="posSearch = ''; $refs.posSearchInput.focus()" title="Limpiar busqueda" aria-label="Limpiar busqueda" class="absolute right-1 top-1 w-9 h-8 flex items-center justify-center text-slate-500 hover:text-red-600"><i class="fa-solid fa-xmark"></i></button>
                         </div>
                         <select x-model="posCategory" class="bg-white border border-slate-300 rounded-xl px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500">
@@ -151,30 +155,29 @@
                         </select>
                     </div>
 
-                    <div class="flex-1 overflow-y-auto p-3 md:p-4 grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-3 md:gap-4">
+                    <div class="product-grid flex-1 overflow-y-auto p-2 grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-2">
                         <template x-for="item in filteredPosProducts" :key="item.id">
-                            <div x-data="{ sellBox: false }" @click="addToCart(item, sellBox ? 'box' : 'unit')" :class="productInCart(item.id) ? '!bg-emerald-100 !border-emerald-600 ring-1 ring-emerald-600' : ''" class="relative bg-white border border-slate-200 rounded-lg p-3 pt-10 flex flex-col justify-between hover:border-amber-500 transition group min-w-0 cursor-pointer">
+                            <div x-data="{ sellBox: false }" @click="addToCart(item, sellBox ? 'box' : 'unit')" :class="productInCart(item.id) ? '!bg-emerald-50 !border-emerald-600 ring-1 ring-emerald-600' : ''" class="product-tile relative bg-white border border-slate-200 rounded overflow-hidden min-w-0 cursor-pointer">
                                 <button type="button" x-cloak x-show="productInCart(item.id)" @click.stop="removeProductFromCart(item.id)" title="Quitar del carrito" :aria-label="'Quitar ' + item.name + ' del carrito'" class="absolute right-1 top-1 z-10 w-8 h-8 bg-white text-red-600 rounded flex items-center justify-center shadow"><i class="fa-solid fa-xmark"></i></button>
-                                <button type="button" x-show="item.photo" @click.stop="openPhoto(item)" :aria-label="'Ver foto de ' + item.name" title="Ampliar foto" class="w-full h-24 mb-2 bg-white rounded overflow-hidden"><img :src="item.photo || undefined" :alt="item.name" loading="lazy" class="w-full h-full object-contain"></button>
-                                <div>
-                                    <div class="flex flex-wrap gap-1 justify-between items-start mb-1.5">
-                                        <span class="text-[9px] md:text-[10px] font-semibold bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded truncate max-w-[90px]" x-text="item.category"></span>
-                                        <span class="text-[11px] md:text-xs font-bold text-slate-500" x-text="'Stock: ' + item.stock"></span>
+                                <button type="button" @click.stop="item.photo ? openPhoto(item) : addToCart(item, sellBox ? 'box' : 'unit')" :aria-label="(item.photo ? 'Ver foto de ' : 'Agregar ') + item.name" :title="item.photo ? 'Ampliar foto' : 'Agregar al carrito'" class="product-tile-photo block w-full bg-white overflow-hidden">
+                                    <img x-show="item.photo" :src="item.photo || undefined" :alt="item.name" loading="lazy" class="w-full h-full object-contain p-1">
+                                    <span x-show="!item.photo" class="w-full h-full flex items-center justify-center text-slate-300"><i class="fa-solid fa-image text-3xl"></i></span>
+                                </button>
+                                <div class="product-tile-body">
+                                    <h3 class="product-tile-name font-semibold text-slate-800" :title="item.name" x-text="item.name"></h3>
+                                    <div class="flex items-center justify-between gap-1">
+                                        <span class="text-xs font-bold text-rose-800 min-w-0 break-words" x-text="productPresentationPrice(item, sellBox ? 'box' : 'unit')"></span>
+                                        <button @click.stop="addToCart(item, sellBox ? 'box' : 'unit')" :disabled="sellBox && (item.boxSalePrice == null || item.stock < item.unitsPerBox)" :aria-label="'Agregar ' + item.name" title="Agregar al carrito" class="bg-amber-100 text-amber-700 hover:bg-amber-500 disabled:opacity-40 w-7 h-7 shrink-0 rounded flex items-center justify-center"><i class="fa-solid fa-plus text-xs"></i></button>
                                     </div>
-                                    <div class="flex items-center space-x-1.5 mb-1">
-                                        <span class="text-[10px] font-mono font-bold bg-slate-200 text-slate-700 px-1 py-0.5 rounded" x-text="'#' + item.code"></span>
+                                    <div class="flex items-center justify-between gap-1 min-w-0 text-[10px]">
+                                        <span class="bg-slate-100 text-slate-600 px-1 py-0.5 rounded truncate min-w-0" :title="item.category" x-text="item.category"></span>
+                                        <span class="text-slate-600 shrink-0" x-text="'Stock: ' + item.stock"></span>
                                     </div>
-                                    <h3 class="font-semibold text-xs md:text-sm text-slate-800 group-hover:text-amber-600 transition line-clamp-2" x-text="item.name"></h3>
-                                </div>
-                                <label x-show="item.boxMode" @click.stop class="mt-2 flex items-start gap-2 text-xs text-slate-700 cursor-pointer">
-                                    <input type="checkbox" x-model="sellBox" :disabled="item.boxSalePrice == null" class="mt-0.5 w-4 h-4 shrink-0 accent-emerald-700">
-                                    <span x-text="'Caja completa (' + item.unitsPerBox + ' unid.)'"></span>
-                                </label>
-                                <div class="mt-3 flex items-center justify-between gap-2">
-                                    <span class="font-bold text-slate-900 text-xs md:text-sm break-words min-w-0" x-text="productPresentationPrice(item, sellBox ? 'box' : 'unit')"></span>
-                                    <button @click.stop="addToCart(item, sellBox ? 'box' : 'unit')" :disabled="sellBox && (item.boxSalePrice == null || item.stock < item.unitsPerBox)" :aria-label="'Agregar ' + item.name" title="Agregar al carrito" class="bg-amber-100 text-amber-700 hover:bg-amber-500 hover:text-slate-900 disabled:opacity-40 w-8 h-8 shrink-0 rounded flex items-center justify-center transition">
-                                        <i class="fa-solid fa-plus text-xs"></i>
-                                    </button>
+                                    <span class="text-[10px] text-slate-500 break-words" x-text="'Código: ' + item.code"></span>
+                                    <label x-show="item.boxMode" @click.stop class="flex items-start gap-1 text-[10px] text-slate-700 cursor-pointer">
+                                        <input type="checkbox" x-model="sellBox" :disabled="item.boxSalePrice == null" class="mt-0.5 w-3.5 h-3.5 shrink-0 accent-emerald-700">
+                                        <span x-text="'Caja (' + item.unitsPerBox + ' unid.)'"></span>
+                                    </label>
                                 </div>
                             </div>
                         </template>
@@ -205,17 +208,21 @@
 
                     <div class="flex-1 overflow-y-auto p-4 space-y-3">
                         <template x-for="(cartItem, index) in cart" :key="cartItem.lineId || cartItem.id">
-                            <div class="flex items-center justify-between bg-slate-50 border border-slate-200 rounded-xl p-3">
-                                <div class="flex-1 pr-2">
-                                    <div class="flex items-center space-x-1 mb-0.5">
-                                        <span class="text-[10px] font-mono font-bold bg-slate-200 text-slate-700 px-1 py-0.5 rounded" x-text="'#' + cartItem.code"></span>
-                                        <h4 class="text-xs font-bold text-slate-800 line-clamp-1" x-text="cartItem.name"></h4>
+                            <div class="grid grid-cols-[48px_minmax(0,1fr)] gap-2 bg-slate-50 border border-slate-200 rounded p-2">
+                                <button type="button" @click="openPhoto(cartProduct(cartItem))" :disabled="!cartProduct(cartItem).photo" :aria-label="'Ver foto de ' + cartItem.name" title="Ampliar foto" class="w-12 h-12 bg-white border rounded overflow-hidden">
+                                    <img x-show="cartProduct(cartItem).photo" :src="cartProduct(cartItem).photo || undefined" :alt="cartItem.name" loading="lazy" class="w-full h-full object-contain">
+                                    <i x-show="!cartProduct(cartItem).photo" class="fa-solid fa-image text-slate-300"></i>
+                                </button>
+                                <div class="min-w-0">
+                                    <div class="mb-0.5">
+                                        <h4 class="text-xs font-bold text-slate-800 line-clamp-2 break-words" x-text="cartItem.name"></h4>
+                                        <span class="text-[10px] text-slate-500 break-words" x-text="'Código: ' + cartItem.code"></span>
                                     </div>
                                     <div class="text-xs text-slate-500" x-text="productPriceLabel(cartItem)"></div>
                                     <div class="text-xs text-slate-500" x-show="cartItem.presentation === 'box'" x-text="cartItem.qty + ' caja(s) = ' + stockUnits(cartItem) + ' unidades'"></div>
                                     <div class="text-xs font-bold text-emerald-600 mt-0.5" x-text="'Subtotal: ' + formatMoney(lineAmount(cartItem))"></div>
                                 </div>
-                                <div class="flex items-center space-x-2">
+                                <div class="col-span-2 flex items-center justify-end space-x-2">
                                     <div class="flex items-center border border-slate-300 rounded-lg bg-white overflow-hidden shadow-sm">
                                         <button @click="updateCartQty(index, -1)" class="px-2 py-1.5 text-slate-600 hover:bg-slate-100 transition"><i class="fa-solid fa-minus text-[10px]"></i></button>
                                         <input type="number" 
@@ -291,9 +298,9 @@
                                 <tr class="hover:bg-slate-50 transition">
                                     <td class="p-3 text-xs text-slate-500 font-bold text-center" x-text="index + 1"></td>
                                     <td class="p-3 font-mono text-xs font-bold text-slate-700 text-center bg-slate-50/50" x-text="item.code"></td>
-                                    <td class="p-3 font-semibold text-slate-800"><div class="flex items-center gap-3">
-                                        <button type="button" x-show="item.photo" @click="openPhoto(item)" :aria-label="'Ver foto de ' + item.name" title="Ampliar foto" class="w-12 h-12 shrink-0 bg-white border rounded overflow-hidden"><img :src="item.photo || undefined" :alt="item.name" loading="lazy" class="w-full h-full object-contain"></button>
-                                        <span x-text="item.name"></span>
+                                    <td class="p-3 font-semibold text-slate-800"><div class="flex items-center gap-2">
+                                        <button type="button" @click="openPhoto(item)" :disabled="!item.photo" :aria-label="'Ver foto de ' + item.name" title="Ampliar foto" class="w-10 h-10 shrink-0 bg-white border rounded overflow-hidden"><img x-show="item.photo" :src="item.photo || undefined" :alt="item.name" loading="lazy" class="w-full h-full object-contain"><i x-show="!item.photo" class="fa-solid fa-image text-slate-300"></i></button>
+                                        <span class="break-words" x-text="item.name"></span>
                                     </div></td>
                                     <td class="p-3">
                                         <span class="text-xs bg-slate-100 text-slate-700 px-2.5 py-1 rounded-full font-medium" x-text="item.category"></span>
@@ -960,6 +967,7 @@
                 },
 
                 productInCart(id) { return this.cart.some(item => String(item.id) === String(id)); },
+                cartProduct(item) { return this.inventory.find(product => String(product.id) === String(item.id)) || item; },
                 removeProductFromCart(id) { this.cart = this.cart.filter(item => String(item.id) !== String(id)); },
                 openPhoto(item) { if (item.photo) this.photoPreview = { photo: item.photo, name: item.name }; },
                 async selectProductPhoto(event) {
