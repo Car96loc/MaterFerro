@@ -2,3 +2,5 @@ firebase-debug.log
 .firebase/
 .recovery/
 recover-products.cjs
+node_modules/
+firestore-debug.log

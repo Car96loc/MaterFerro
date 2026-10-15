@@ -1,13 +1,69 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    function isOwner() {
-      return request.auth != null
-        && request.auth.token.email == 'carzunsan@gmail.com'
-        && request.auth.token.email_verified == true;
+    function verified() { return request.auth != null && request.auth.token.email_verified == true; }
+    function isOwner() { return verified() && request.auth.token.email == 'carzunsan@gmail.com'; }
+    function base() { return /databases/$(database)/documents/artifacts/ferromaster-pos/public/data; }
+    function isCashier() {
+      return verified() && get(/$(base())/users/$(request.auth.token.email)).data.role == 'cashier'
+        && get(/$(base())/users/$(request.auth.token.email)).data.active == true;
     }
-    match /artifacts/ferromaster-pos/public/data/{kind}/{id} {
-      allow read, write: if isOwner() && kind in ['inventory', 'sales'];
+    function validLine(id, line, saleId) {
+      let p = get(/$(base())/catalog/$(id)).data;
+      let after = getAfter(/$(base())/catalog/$(id)).data;
+      return line.keys().hasOnly(['unitQty', 'boxQty', 'costVersion', 'unitsSold', 'stockBefore', 'stockAfter'])
+        && line.unitQty is int && line.unitQty >= 0 && line.boxQty is int && line.boxQty >= 0
+        && (line.boxQty == 0 || (p.boxMode && p.boxSalePrice != null))
+        && line.costVersion == p.costVersion
+        && line.stockBefore == p.stock
+        && line.unitsSold == line.unitQty + line.boxQty * p.unitsPerBox && line.unitsSold > 0
+        && line.stockAfter == p.stock - line.unitsSold && line.stockAfter >= 0
+        && after.stock == line.stockAfter && after.lastSaleId == saleId;
+    }
+    function at(data, i, saleId) {
+      return i >= data.productIds.size() || paired(data.productIds[i], saleId);
+    }
+    function paired(id, saleId) {
+      return getAfter(/$(base())/catalog/$(id)).data.lastSaleId == saleId
+        && get(/$(base())/catalog/$(id)).data.get('lastSaleId', '') != saleId;
+    }
+    function validSale(data, saleId) {
+      return data.keys().hasOnly(['id', 'date', 'paymentMethod', 'reportVersion', 'cashierUid', 'cashierEmail', 'cashierName', 'productIds', 'lines', 'createdAt'])
+        && data.id == saleId && data.reportVersion == 4 && data.createdAt == request.time
+        && data.cashierUid == request.auth.uid && data.cashierEmail == request.auth.token.email
+        && data.cashierName == get(/$(base())/users/$(request.auth.token.email)).data.name
+        && data.paymentMethod in ['efectivo', 'tarjeta', 'transferencia']
+        && data.productIds is list && data.productIds.size() > 0 && data.productIds.size() <= 8
+        && data.lines is map && data.lines.keys().toSet() == data.productIds.toSet()
+        && data.productIds.toSet().size() == data.productIds.size()
+        && at(data, 0, saleId) && at(data, 1, saleId) && at(data, 2, saleId) && at(data, 3, saleId)
+        && at(data, 4, saleId) && at(data, 5, saleId) && at(data, 6, saleId) && at(data, 7, saleId);
+    }
+    match /artifacts/ferromaster-pos/public/data/users/{email} {
+      allow get: if isOwner() || (verified() && request.auth.token.email == email);
+      allow list: if isOwner();
+      allow create, update: if isOwner() && email != 'carzunsan@gmail.com'
+        && request.resource.data.keys().hasOnly(['email', 'name', 'role', 'active'])
+        && request.resource.data.email == email && request.resource.data.name is string
+        && request.resource.data.name.size() > 0 && request.resource.data.name.size() <= 80
+        && request.resource.data.role == 'cashier' && request.resource.data.active is bool;
+    }
+    match /artifacts/ferromaster-pos/public/data/inventory/{id} { allow read, write: if isOwner(); }
+    match /artifacts/ferromaster-pos/public/data/costs/{id} { allow read, create: if isOwner(); }
+    match /artifacts/ferromaster-pos/public/data/catalog/{id} {
+      allow read: if isOwner() || isCashier();
+      allow create, delete: if isOwner();
+      allow update: if isOwner() || (
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['stock', 'lastSaleId'])
+        && !exists(/$(base())/sales/$(request.resource.data.lastSaleId))
+        && getAfter(/$(base())/sales/$(request.resource.data.lastSaleId)).data.cashierUid == request.auth.uid
+        && validLine(id, getAfter(/$(base())/sales/$(request.resource.data.lastSaleId)).data.lines[id], request.resource.data.lastSaleId));
+    }
+    match /artifacts/ferromaster-pos/public/data/sales/{id} {
+      allow list: if isOwner();
+      allow get: if isOwner() || (isCashier() && !exists(/$(base())/sales/$(id)));
+      allow create: if isOwner() || (isCashier() && validSale(request.resource.data, id));
+      allow update, delete: if isOwner();
     }
   }
 }

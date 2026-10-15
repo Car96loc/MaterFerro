@@ -40,7 +40,7 @@ export function periodRange(period, anchor) {
 export function withInventoryCosts(sale, inventory = []) {
     if (!sale) return sale;
     return { ...sale, items: (sale.items || []).map(item => {
-        if (itemTotals(item).known) return item;
+        if (itemTotals(item).known || item.costSource === 'historical-pending') return item;
         const product = inventory.find(product => String(product.id) === String(item.id));
         if (!product || !Number.isFinite(Number(product.buyPrice)) || Number(product.buyPrice) <= 0) return item;
         return { ...item, buyPrice: Number(product.buyPrice), costKnown: true, costSource: 'inventory-estimate' };

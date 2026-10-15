@@ -60,10 +60,21 @@ test('saved inventory and sales render before authentication or network resolves
     const saved = { inventory: [{ id: 'p1', stock: 60 }], sales: [{ id: 's1' }] };
     const { app, resolveAuth } = application(saved);
     assert.equal(app.inventory[0].stock, 60);
-    assert.equal(app.sales[0].id, 's1');
+    assert.equal(app.sales.length, 0);
     assert.equal(app.authReady, false);
     resolveAuth({ email: 'carzunsan@gmail.com' });
     assert.equal(app.inventory[0].stock, 60);
     resolveAuth(null);
     assert.equal(app.inventory.length, 0);
+});
+
+test('cashier login never restores administrator cache or administrative sections', () => {
+    const { app, resolveAuth, html } = application({ inventory: [{ id: '1', stock: 5, buyPrice: 10 }], sales: [{ id: 'private' }] });
+    assert.equal(app.inventory[0].buyPrice, undefined);
+    assert.equal(app.sales.length, 0);
+    resolveAuth({ email: 'cajero@example.com', name: 'Ana', role: 'cashier' });
+    assert.equal(app.isAdmin, false);
+    assert.equal(app.sales.length, 0);
+    assert.match(html, /isAdmin && activeTab === 'users'/);
+    assert.match(html, /isAdmin && activeTab === 'inventory'/);
 });

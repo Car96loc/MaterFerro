@@ -29,7 +29,7 @@
         ::-webkit-scrollbar-track { background: #f1f5f9; }
         ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
     </style>
-    <script type="module" src="./firebase-sync.js?v=gallery-1"></script>
+    <script type="module" src="./firebase-sync.js?v=roles-1"></script>
 </head>
 <body class="bg-slate-100 text-slate-800 h-full flex flex-col overflow-x-hidden" x-data="ferroApp()">
     <div x-cloak x-show="!authPending && !authReady" class="fixed inset-0 z-50 bg-slate-100 flex items-center justify-center p-4">
@@ -59,13 +59,14 @@
                 <i class="fa-solid fa-circle text-[6px] animate-pulse text-emerald-400"></i>
                 <span x-text="syncStatus"></span>
             </span>
+            <span x-cloak x-show="authReady" class="hidden sm:block text-xs text-slate-300 max-w-[160px] truncate" :title="accountName" x-text="(isAdmin ? 'Administrador: ' : 'Cajero: ') + accountName"></span>
             <button x-show="authReady" @click="window.ferroFirebase.logout()" title="Cerrar sesión" aria-label="Cerrar sesión" class="p-2"><i class="fa-solid fa-right-from-bracket"></i></button>
         </div>
         <div class="flex items-center space-x-2 md:space-x-3">
-            <button @click="exportToExcel()" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs px-2.5 md:px-3.5 py-2 rounded-xl font-medium transition flex items-center shadow-sm">
+            <button x-cloak x-show="isAdmin" @click="exportToExcel()" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs px-2.5 md:px-3.5 py-2 rounded-xl font-medium transition flex items-center shadow-sm">
                 <i class="fa-solid fa-file-excel mr-1 md:mr-1.5"></i> <span class="hidden sm:inline">Excel</span>
             </button>
-            <button @click="exportToPDF()" class="bg-rose-600 hover:bg-rose-700 text-white text-xs px-2.5 md:px-3.5 py-2 rounded-xl font-medium transition flex items-center shadow-sm">
+            <button x-cloak x-show="isAdmin" @click="exportToPDF()" class="bg-rose-600 hover:bg-rose-700 text-white text-xs px-2.5 md:px-3.5 py-2 rounded-xl font-medium transition flex items-center shadow-sm">
                 <i class="fa-solid fa-file-pdf mr-1 md:mr-1.5"></i> <span class="hidden sm:inline">PDF</span>
             </button>
             <span class="text-xs bg-slate-800 px-3 py-2 rounded-xl border border-slate-700 text-slate-300 hidden xl:inline-block">
@@ -87,25 +88,26 @@
             </div>
 
             <div class="p-4 space-y-1.5 overflow-y-auto flex-1">
+                <button x-cloak x-show="isAdmin" @click="activeTab = 'users'; mobileMenuOpen = false" :class="activeTab === 'users' ? 'bg-amber-500 text-slate-900 font-bold' : 'hover:bg-slate-700'" class="w-full flex items-center gap-3 px-4 py-3 rounded text-sm"><i class="fa-solid fa-users w-5 text-center"></i><span>Usuarios</span></button>
                 <button @click="activeTab = 'pos'; mobileMenuOpen = false" :class="activeTab === 'pos' ? 'bg-amber-500 text-slate-900 font-bold shadow' : 'hover:bg-slate-700 hover:text-white'" class="w-full flex items-center space-x-3 px-4 py-3 rounded-xl text-sm transition">
                     <i class="fa-solid fa-cash-register w-5 text-center"></i>
                     <span>Caja / POS</span>
                 </button>
-                <button @click="activeTab = 'inventory'; mobileMenuOpen = false" :class="activeTab === 'inventory' ? 'bg-amber-500 text-slate-900 font-bold shadow' : 'hover:bg-slate-700 hover:text-white'" class="w-full flex items-center space-x-3 px-4 py-3 rounded-xl text-sm transition">
+                <button x-cloak x-show="isAdmin" @click="activeTab = 'inventory'; mobileMenuOpen = false" :class="activeTab === 'inventory' ? 'bg-amber-500 text-slate-900 font-bold shadow' : 'hover:bg-slate-700 hover:text-white'" class="w-full flex items-center space-x-3 px-4 py-3 rounded-xl text-sm transition">
                     <i class="fa-solid fa-boxes-stacked w-5 text-center"></i>
                     <span>Inventario (<span x-text="inventory.length"></span>)</span>
                 </button>
-                <button @click="activeTab = 'sales'; mobileMenuOpen = false" :class="activeTab === 'sales' ? 'bg-amber-500 text-slate-900 font-bold shadow' : 'hover:bg-slate-700 hover:text-white'" class="w-full flex items-center space-x-3 px-4 py-3 rounded-xl text-sm transition">
+                <button x-cloak x-show="isAdmin" @click="activeTab = 'sales'; mobileMenuOpen = false" :class="activeTab === 'sales' ? 'bg-amber-500 text-slate-900 font-bold shadow' : 'hover:bg-slate-700 hover:text-white'" class="w-full flex items-center space-x-3 px-4 py-3 rounded-xl text-sm transition">
                     <i class="fa-solid fa-chart-line w-5 text-center"></i>
                     <span>Historial Ventas</span>
                 </button>
-                <button @click="activeTab = 'profits'; mobileMenuOpen = false" :class="activeTab === 'profits' ? 'bg-amber-500 text-slate-900 font-bold shadow' : 'hover:bg-slate-700 hover:text-white'" class="w-full flex items-center space-x-3 px-4 py-3 rounded-xl text-sm transition">
+                <button x-cloak x-show="isAdmin" @click="activeTab = 'profits'; mobileMenuOpen = false" :class="activeTab === 'profits' ? 'bg-amber-500 text-slate-900 font-bold shadow' : 'hover:bg-slate-700 hover:text-white'" class="w-full flex items-center space-x-3 px-4 py-3 rounded-xl text-sm transition">
                     <i class="fa-solid fa-chart-pie w-5 text-center"></i>
                     <span>Ganancias & Análisis</span>
                 </button>
             </div>
 
-            <div class="mt-auto p-4 m-4 bg-slate-900/60 rounded-xl border border-slate-700 space-y-2.5 hidden md:block">
+            <div x-cloak x-show="isAdmin" class="mt-auto p-4 m-4 bg-slate-900/60 rounded-xl border border-slate-700 space-y-2.5 hidden md:block">
                 <div class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Resumen General</div>
                 <div class="flex justify-between items-center text-xs">
                     <span class="text-slate-400">Productos:</span>
@@ -133,6 +135,19 @@
         <main class="flex-1 overflow-y-auto p-3 md:p-6 bg-slate-100 relative flex flex-col">
 
             <!-- TAB: POS / CAJA -->
+            <section x-cloak x-show="isAdmin && activeTab === 'users'" class="bg-white p-4 space-y-5 overflow-y-auto">
+                <h2 class="text-lg font-semibold">Usuarios</h2>
+                <form @submit.prevent="saveCashier()" class="flex flex-wrap items-end gap-3 border-b pb-4">
+                    <label class="text-xs font-medium flex-1 min-w-[160px]">Nombre<input type="text" x-model="cashierForm.name" maxlength="80" required class="block mt-1 w-full border rounded px-3 py-2 text-sm"></label>
+                    <label class="text-xs font-medium flex-1 min-w-[180px]">Correo<input type="email" x-model="cashierForm.email" required autocomplete="off" class="block mt-1 w-full border rounded px-3 py-2 text-sm"></label>
+                    <button type="submit" :disabled="userBusy" class="bg-emerald-700 text-white px-4 py-2 rounded text-sm disabled:opacity-40"><i class="fa-solid fa-user-plus mr-2"></i><span x-text="userBusy ? 'Guardando...' : 'Agregar cajero'"></span></button>
+                </form>
+                <p role="status" x-text="userMessage" class="text-sm text-slate-600"></p>
+                <div class="overflow-x-auto"><table class="w-full text-left text-sm"><thead><tr class="border-b"><th class="p-2">Nombre</th><th class="p-2">Correo</th><th class="p-2">Rol</th><th class="p-2">Activo</th></tr></thead><tbody>
+                    <tr class="border-b"><td class="p-2">Administrador</td><td class="p-2">carzunsan@gmail.com</td><td class="p-2">Administrador</td><td class="p-2"><i class="fa-solid fa-lock text-slate-400" title="Cuenta propietaria"></i></td></tr>
+                    <template x-for="user in users" :key="user.email"><tr class="border-b"><td class="p-2 break-words" x-text="user.name"></td><td class="p-2 break-all" x-text="user.email"></td><td class="p-2">Cajero</td><td class="p-2"><input type="checkbox" :checked="user.active" :disabled="userBusy" @change="toggleCashier(user, $event)" :aria-label="'Acceso activo de ' + user.name" class="w-5 h-5 accent-emerald-700"></td></tr></template>
+                </tbody></table></div>
+            </section>
             <div x-show="activeTab === 'pos'" class="h-full flex flex-col lg:flex-row gap-4 md:gap-6">
                 
                 <div class="lg:hidden bg-slate-900 text-white px-4 py-3 rounded-xl flex items-center justify-between shadow-md shrink-0">
@@ -163,7 +178,7 @@
                         </select>
                     </div>
 
-                    <div class="product-grid flex-1">
+                    <div class="product-grid flex-1" :inert="!authReady">
                         <template x-for="item in filteredPosProducts" :key="item.id">
                             <div x-data="{ sellBox: false }" @click="addToCart(item, sellBox ? 'box' : 'unit')" :class="productInCart(item.id) ? '!bg-emerald-50 !border-emerald-600 ring-1 ring-emerald-600' : ''" class="product-tile relative bg-white border border-slate-200 rounded overflow-hidden min-w-0 cursor-pointer">
                                 <button type="button" x-cloak x-show="productInCart(item.id)" @click.stop="removeProductFromCart(item.id)" title="Quitar del carrito" :aria-label="'Quitar ' + item.name + ' del carrito'" class="absolute right-1 top-1 z-10 w-8 h-8 bg-white text-red-600 rounded flex items-center justify-center shadow"><i class="fa-solid fa-xmark"></i></button>
@@ -271,7 +286,7 @@
             </div>
 
             <!-- TAB: INVENTARIO -->
-            <div x-show="activeTab === 'inventory'" class="h-full flex flex-col bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+            <div x-show="isAdmin && activeTab === 'inventory'" class="h-full flex flex-col bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
                 <div class="p-3 md:p-4 border-b border-slate-200 bg-slate-50 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
                     <div class="relative flex-1">
                         <i class="fa-solid fa-search absolute left-3.5 top-3 text-slate-400"></i>
@@ -341,7 +356,7 @@
             </div>
 
             <!-- TAB: HISTORIAL DE VENTAS -->
-            <div x-show="activeTab === 'sales'" class="h-full flex flex-col bg-white overflow-y-auto min-h-0">
+            <div x-show="isAdmin && activeTab === 'sales'" class="h-full flex flex-col bg-white overflow-y-auto min-h-0">
                 <div class="p-4 border-b border-slate-200 space-y-4">
                     <div class="flex flex-wrap gap-3 items-center justify-between">
                         <h3 class="font-bold text-slate-800"><i class="fa-solid fa-file-invoice-dollar mr-2 text-emerald-600"></i>Ventas y ganancias</h3>
@@ -392,7 +407,7 @@
                                     <td class="p-3 font-mono text-xs max-w-40 break-all" x-text="sale.id"></td>
                                     <td class="p-3 text-xs" x-text="displaySaleDate(sale.date)"></td>
                                     <td class="p-3 text-xs uppercase" x-text="sale.paymentMethod"></td>
-                                    <td class="p-3 text-right" x-text="sale.itemsCount"></td>
+                                    <td class="p-3 text-right"><span x-text="sale.itemsCount"></span><span class="block text-[10px] text-slate-500" x-text="sale.cashierName || sale.cashierEmail || ''"></span></td>
                                     <td class="p-3 text-right font-semibold" x-text="formatMoney(sale.total)"></td>
                                     <td class="p-3 text-right" x-text="formatReportMoney(saleTotals(sale).cost)"></td>
                                     <td class="p-3 text-right font-semibold"><span x-text="formatReportMoney(saleTotals(sale).profit)"></span><span x-show="saleTotals(sale).estimated" class="block text-xs text-amber-800 font-normal">Estimado</span></td>
@@ -406,7 +421,7 @@
             </div>
 
             <!-- TAB: GANANCIAS & ANÁLISIS -->
-            <div x-show="activeTab === 'profits'" class="h-full overflow-y-auto bg-white">
+            <div x-show="isAdmin && activeTab === 'profits'" class="h-full overflow-y-auto bg-white">
                 <div class="p-4 border-b border-slate-200">
                     <h3 class="font-bold text-slate-800 mb-3">Ganancias y márgenes</h3>
                 </div>
@@ -753,13 +768,19 @@
                 isSyncing: true,
                 syncStatus: 'Conectando...',
                 authReady: false,
+                isAdmin: false,
+                accountName: '',
+                users: [],
+                userBusy: false,
+                userMessage: '',
+                cashierForm: { name: '', email: '' },
                 authPending: true,
                 authBusy: false,
                 saleBusy: false,
                 returnBusy: false,
                 deleteBusy: false,
                 authMessage: '',
-                loginEmail: 'carzunsan@gmail.com',
+                loginEmail: '',
                 
                 returnMode: 'all',
                 itemToReturn: null,
@@ -782,69 +803,7 @@
                     'Seguridad y Misceláneos'
                 ],
 
-                inventory: [
-                    { id: '1', code: '1', name: 'Cinta aislante 3M', category: 'Electricidad', buyPrice: 0.65, price: 0.80, stock: 10 },
-                    { id: '2', code: '2', name: 'Interruptor sobrepuesto Tik Tak', category: 'Electricidad', buyPrice: 0.40, price: 0.50, stock: 3 },
-                    { id: '3', code: '3', name: 'Tomacorriente sobrepuesto', category: 'Electricidad', buyPrice: 0.70, price: 0.80, stock: 3 },
-                    { id: '4', code: '4', name: 'Boquilla plana', category: 'Iluminación', buyPrice: 0.50, price: 0.60, stock: 3 },
-                    { id: '5', code: '5', name: 'Tomacorriente cuadrado América Lite', category: 'Electricidad', buyPrice: 1.10, price: 1.50, stock: 2 },
-                    { id: '6', code: '6', name: 'Boquilla brotada', category: 'Iluminación', buyPrice: 0.65, price: 0.80, stock: 2 },
-                    { id: '7', code: '7', name: 'Boquilla con cable', category: 'Iluminación', buyPrice: 0.50, price: 0.60, stock: 3 },
-                    { id: '8', code: '8', name: 'Boquilla con enchufe', category: 'Iluminación', buyPrice: 0.45, price: 0.60, stock: 2 },
-                    { id: '9', code: '9', name: 'Interruptor Ticino para caja de 1', category: 'Electricidad', buyPrice: 1.50, price: 2.00, stock: 3 },
-                    { id: '10', code: '10', name: 'Interruptor Ticino para caja de 2', category: 'Electricidad', buyPrice: 2.80, price: 3.50, stock: 3 },
-                    { id: '11', code: '11', name: 'Interruptor Ticino para caja de 3', category: 'Electricidad', buyPrice: 3.80, price: 4.50, stock: 3 },
-                    { id: '12', code: '12', name: 'Tubo de luz de ½ pulgada', category: 'Electricidad', buyPrice: 0.60, price: 0.75, stock: 5 },
-                    { id: '13', code: '13', name: 'Enchufe amarillo', category: 'Electricidad', buyPrice: 0.45, price: 0.60, stock: 5 },
-                    { id: '14', code: '14', name: 'Foco pequeño de 9 W', category: 'Iluminación', buyPrice: 0.55, price: 0.75, stock: 3 },
-                    { id: '15', code: '15', name: 'Foco para pollitos', category: 'Iluminación', buyPrice: 0.90, price: 1.25, stock: 5 },
-                    { id: '16', code: '16', name: 'Foco Osram de 20 W', category: 'Iluminación', buyPrice: 1.25, price: 1.80, stock: 3 },
-                    { id: '17', code: '17', name: 'Foco Osram de 40 W', category: 'Iluminación', buyPrice: 3.25, price: 4.00, stock: 1 },
-                    { id: '18', code: '18', name: 'Caja rectangular empotrada', category: 'Tornillería y Cajas', buyPrice: 0.25, price: 0.35, stock: 10 },
-                    { id: '19', code: '19', name: 'Caja octagonal', category: 'Tornillería y Cajas', buyPrice: 0.25, price: 0.35, stock: 5 },
-                    { id: '20', code: '20', name: 'Tapa para toma', category: 'Electricidad', buyPrice: 0.15, price: 0.25, stock: 5 },
-                    { id: '21', code: '21', name: 'Tomacorriente azul Estom para caja', category: 'Electricidad', buyPrice: 1.20, price: 1.75, stock: 2 },
-                    { id: '22', code: '22', name: 'Tomacorriente para aire acondicionado Veto', category: 'Electricidad', buyPrice: 2.80, price: 3.50, stock: 2 },
-                    { id: '23', code: '23', name: 'Enchufe América Lite', category: 'Electricidad', buyPrice: 2.50, price: 3.00, stock: 2 },
-                    { id: '24', code: '24', name: 'Enchufe ETN', category: 'Electricidad', buyPrice: 3.25, price: 4.00, stock: 1 },
-                    { id: '25', code: '25', name: 'Tapa ciega', category: 'Electricidad', buyPrice: 0.15, price: 0.25, stock: 5 },
-                    { id: '26', code: '26', name: 'Tapa china redonda (regalo)', category: 'Seguridad y Misceláneos', buyPrice: 0.00, price: 0.00, stock: 10 },
-                    { id: '27', code: '27', name: 'Interruptor Bossi de 1 módulo', category: 'Electricidad', buyPrice: 0.85, price: 1.25, stock: 3 },
-                    { id: '28', code: '28', name: 'Tomacorriente KAF para caja', category: 'Electricidad', buyPrice: 0.90, price: 1.25, stock: 5 },
-                    { id: '29', code: '29', name: 'Gafas oscuras', category: 'Seguridad y Misceláneos', buyPrice: 0.65, price: 1.00, stock: 3 },
-                    { id: '30', code: '30', name: 'Gafas transparentes', category: 'Seguridad y Misceláneos', buyPrice: 0.00, price: 1.00, stock: 3 },
-                    { id: '31', code: '31', name: 'Grapas para cable (paquete de 100)', category: 'Ferretería y Cables', buyPrice: 0.0125, price: 0.025, stock: 100 },
-                    { id: '32', code: '32', name: 'Vidrio para soldar', category: 'Seguridad y Misceláneos', buyPrice: 0.15, price: 0.40, stock: 5 },
-                    { id: '33', code: '33', name: 'Regleta fina para meter cable', category: 'Ferretería y Cables', buyPrice: 0.60, price: 0.80, stock: 3 },
-                    { id: '34', code: '34', name: 'Regleta gruesa para meter cable', category: 'Ferretería y Cables', buyPrice: 0.60, price: 0.80, stock: 3 },
-                    { id: '35', code: '35', name: 'Unión roscable de ½ ERA', category: 'Plomería', buyPrice: 0.30, price: 0.40, stock: 5 },
-                    { id: '36', code: '36', name: 'Unión roscable de ½ económica', category: 'Plomería', buyPrice: 0.15, price: 0.25, stock: 5 },
-                    { id: '37', code: '37', name: 'Unión roscable de ¾', category: 'Plomería', buyPrice: 0.50, price: 0.60, stock: 3 },
-                    { id: '38', code: '38', name: 'Neplo perdido', category: 'Plomería', buyPrice: 0.05, price: 0.15, stock: 5 },
-                    { id: '39', code: '39', name: 'Neplo de ½ pulgada', category: 'Plomería', buyPrice: 0.15, price: 0.25, stock: 3 },
-                    { id: '40', code: '40', name: 'Nudo universal', category: 'Plomería', buyPrice: 0.70, price: 0.85, stock: 2 },
-                    { id: '41', code: '41', name: 'Acople macho', category: 'Plomería', buyPrice: 0.15, price: 0.30, stock: 3 },
-                    { id: '42', code: '42', name: 'Acople hembra', category: 'Plomería', buyPrice: 0.15, price: 0.30, stock: 3 },
-                    { id: '43', code: '43', name: 'Tapón hembra de ½ pulgada', category: 'Plomería', buyPrice: 0.15, price: 0.25, stock: 3 },
-                    { id: '44', code: '44', name: 'Tapón macho de ½ pulgada', category: 'Plomería', buyPrice: 0.15, price: 0.25, stock: 3 },
-                    { id: '45', code: '45', name: 'T roscable de ½ pulgada', category: 'Plomería', buyPrice: 0.30, price: 0.40, stock: 3 },
-                    { id: '46', code: '46', name: 'Reductor de ¾ a ½ pulgada', category: 'Plomería', buyPrice: 0.30, price: 0.40, stock: 3 },
-                    { id: '47', code: '47', name: 'Unión para manguera de ½', category: 'Plomería', buyPrice: 0.15, price: 0.25, stock: 3 },
-                    { id: '48', code: '48', name: 'Codo para manguera de ½', category: 'Plomería', buyPrice: 0.15, price: 0.25, stock: 3 },
-                    { id: '49', code: '49', name: 'T para manguera de ½', category: 'Plomería', buyPrice: 0.20, price: 0.30, stock: 3 },
-                    { id: '50', code: '50', name: 'Abrazadera azul reforzada de ½ pulgada', category: 'Plomería', buyPrice: 0.30, price: 0.40, stock: 5 },
-                    { id: '51', code: '51', name: 'Abrazadera azul reforzada para gas', category: 'Plomería', buyPrice: 0.30, price: 0.40, stock: 5 },
-                    { id: '52', code: '52', name: 'Abrazadera azul reforzada de 1 pulgada', category: 'Plomería', buyPrice: 0.45, price: 0.55, stock: 2 },
-                    { id: '53', code: '53', name: 'Silicón transparente ABRO', category: 'Adhesivos y Pastas', buyPrice: 1.25, price: 1.60, stock: 2 },
-                    { id: '54', code: '54', name: 'Pasta gris para calor', category: 'Adhesivos y Pastas', buyPrice: 1.40, price: 2.00, stock: 2 },
-                    { id: '55', code: '55', name: 'Pasta Permatex para pegar tubos', category: 'Adhesivos y Pastas', buyPrice: 1.50, price: 2.00, stock: 2 },
-                    { id: '56', code: '56', name: 'Pegatubo, frasco pequeño', category: 'Adhesivos y Pastas', buyPrice: 1.10, price: 1.30, stock: 3 },
-                    { id: '57', code: '57', name: 'Llave de palanca para jardín amarilla', category: 'Plomería', buyPrice: 2.25, price: 3.00, stock: 2 },
-                    { id: '58', code: '58', name: 'Llave de fierro roja', category: 'Plomería', buyPrice: 2.75, price: 3.25, stock: 2 },
-                    { id: '59', code: '59', name: 'Llave de jardín plástica', category: 'Plomería', buyPrice: 0.80, price: 1.00, stock: 3 },
-                    { id: '60', code: '60', name: 'Llave de paso plástica roja', category: 'Plomería', buyPrice: 0.75, price: 1.00, stock: 2 }
-                ],
-
+                inventory: [],
                 cart: [],
                 sales: [],
                 salesPeriod: 'day',
@@ -872,8 +831,8 @@
                     setInterval(() => this.updateClock(), 1000);
 
                     const saved = window.ferroFirebase.readDeviceCache?.();
-                    this.inventory = saved?.inventory || [];
-                    this.sales = saved?.sales || [];
+                    this.inventory = (saved?.inventory || []).map(item => ({ id: item.id, code: item.code, name: item.name, stock: item.stock, category: item.category, price: item.price, photo: item.photo, photos: item.photos }));
+                    this.sales = [];
                     window.addEventListener('ferro-sync', event => {
                         this.syncStatus = event.detail;
                         this.isSyncing = event.detail !== 'Sincronizado';
@@ -881,6 +840,21 @@
                     window.addEventListener('ferro-error', event => this.showNotification(event.detail));
                     window.ferroFirebase.initAuth(user => {
                         this.authReady = !!user;
+                        this.isAdmin = user?.role === 'admin' || user?.email === 'carzunsan@gmail.com';
+                        this.accountName = user?.name || user?.email || '';
+                        this.activeTab = 'pos';
+                        this.users = [];
+                        if (this.isAdmin) {
+                            const cached = window.ferroFirebase.readDeviceCache?.();
+                            if (cached) { this.inventory = cached.inventory; this.sales = cached.sales; }
+                        } else {
+                            this.inventory = []; this.sales = []; this.cart = [];
+                            this.closeProductModal();
+                            this.productForm = { name: '', code: '', category: '', buyPrice: 0, price: 0, stock: 0, photos: [], photo: '' };
+                            this.isSaleDetailOpen = false; this.selectedSale = null;
+                            this.isReturnAuthOpen = false; this.isDeleteModalOpen = false; this.isCheckoutOpen = false;
+                            this.photoPreview = null; this.returnAuthPassword = '';
+                        }
                         this.authPending = false;
                         if (!user) {
                             this.inventory = [];
@@ -892,6 +866,25 @@
                         this.inventory = cloudItems.sort((a, b) => String(a.code).localeCompare(String(b.code), 'es', { numeric: true }));
                     });
                     window.ferroFirebase.subscribeSales(cloudSales => { this.sales = cloudSales; });
+                    window.ferroFirebase.subscribeUsers?.(users => { this.users = users; });
+                },
+
+                async saveCashier() {
+                    if (!this.isAdmin || this.userBusy) return;
+                    this.userBusy = true; this.userMessage = '';
+                    try {
+                        await window.ferroFirebase.saveUser(this.cashierForm);
+                        this.cashierForm = { name: '', email: '' };
+                        this.userMessage = 'Cajero agregado. Puede entrar con su correo desde el enlace de FerroMaster.';
+                    } catch (error) { this.userMessage = error.message; }
+                    finally { this.userBusy = false; }
+                },
+                async toggleCashier(user, event) {
+                    if (!this.isAdmin || this.userBusy) return;
+                    this.userBusy = true;
+                    try { await window.ferroFirebase.setUserActive(user, event.target.checked); }
+                    catch (error) { event.target.checked = user.active; this.userMessage = error.message; }
+                    finally { this.userBusy = false; }
                 },
 
                 async sendLoginLink() {
@@ -1075,6 +1068,9 @@
                 },
 
                 addToCart(product, presentation = 'unit') {
+                    if (this.authReady && !this.isAdmin && !this.productInCart(product.id) && new Set(this.cart.map(item => String(item.id))).size >= 8) {
+                        this.showNotification('Hasta 8 productos distintos por venta de cajero.'); return;
+                    }
                     if (presentation === 'box' && (!product.boxMode || product.boxSalePrice == null)) {
                         this.showNotification('Define el precio de venta de la caja en el inventario.');
                         return;

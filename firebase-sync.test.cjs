@@ -11,6 +11,7 @@ function client(store = new Map()) {
     let authCallback;
     const context = {
         console: { error() {} }, window, navigator,
+        crypto: require('node:crypto').webcrypto,
         readDeviceCache() { return null; }, saveDeviceCache() {}, clearDeviceCache() {},
         location: { href: 'https://car96loc.github.io/MaterFerro/', pathname: '/MaterFerro/' },
         history: { replaceState() {} },
@@ -20,6 +21,8 @@ function client(store = new Map()) {
         isSignInWithEmailLink() { return false; },
         onAuthStateChanged(auth, callback) { authCallback = callback; },
         signOut: async () => {}, sendSignInLinkToEmail: async () => {},
+        serverTimestamp: () => ({ serverTimestamp: true }),
+        async getDocs(path) { return { docs: [...store].filter(([key]) => key.startsWith(path + '/')).map(([key, value]) => ({ id: key.split('/').at(-1), data: () => structuredClone(value) })) }; },
         collection: (db, ...path) => path.join('/'), doc: (db, ...path) => path.join('/'),
         onSnapshot(path, options, callback, error) { subscriptions.set(path.split('/').at(-1), { callback, error }); return () => {}; },
         async setDoc(path, value) { store.set(path, structuredClone(value)); },
@@ -38,6 +41,7 @@ function client(store = new Map()) {
         }
     };
     const source = fs.readFileSync(__dirname + '/firebase-sync.js', 'utf8').replace(/^import .*;\r?\n/gm, '');
+    vm.runInNewContext(fs.readFileSync(__dirname + '/access.js', 'utf8').replace(/^export /gm, ''), context);
     vm.runInNewContext(fs.readFileSync(__dirname + '/product-tools.js', 'utf8').replace(/^export /gm, ''), context);
     vm.runInNewContext(fs.readFileSync(__dirname + '/photo-editor.js', 'utf8').replace(/^import .*;\r?\n/gm, '').replace(/^export /gm, ''), context);
     vm.runInNewContext(fs.readFileSync(__dirname + '/pricing.js', 'utf8').replace(/^export /gm, ''), context);
@@ -50,6 +54,42 @@ function client(store = new Map()) {
 }
 const key = (kind, id) => `artifacts/ferromaster-pos/public/data/${kind}/${id}`;
 const sale = id => ({ id, items: [{ id: 'p1', name: 'Martillo', qty: 2, price: 10 }], total: 20, itemsCount: 2 });
+
+test('administrator prepares a cost-free catalog before registering a cashier', async () => {
+    const c = client(new Map([[key('inventory', 'p1'), { code: '1', name: 'Martillo', category: 'Otros', stock: 10, buyPrice: 5, price: 10 }]]));
+    await c.login();
+    await c.api.saveUser({ name: 'Ana', email: 'ANA@example.com' });
+    assert.equal(c.store.get(key('users', 'ana@example.com')).active, true);
+    assert.equal(c.store.get(key('catalog', 'p1')).buyPrice, undefined);
+    assert.equal(c.store.get(key('catalog', 'p1')).stock, 10);
+    assert.ok(c.store.get(key('catalog', 'p1')).costVersion);
+    await assert.rejects(c.api.saveUser({ name: 'Otra', email: 'ana@example.com' }));
+});
+
+test('cashier bridge subscribes only to catalog, records sale and cannot manage inventory or users', async () => {
+    const c = client(new Map([[key('catalog', 'p1'), { code: '1', name: 'Martillo', category: 'Otros', stock: 10, price: 10, salePrice: 10, saleUnits: 1, unitsPerBox: 1, boxMode: false, boxSalePrice: null, costVersion: 'v1' }]]));
+    c.api.subscribeInventory(() => {}); c.api.subscribeSales(() => {}); c.api.subscribeUsers(() => {});
+    await c.login({ uid: 'u1', email: 'ana@example.com', emailVerified: true });
+    c.subscriptions.get('ana@example.com').callback({ exists: () => true, data: () => ({ role: 'cashier', name: 'Ana', active: true }) });
+    assert.ok(c.subscriptions.has('catalog'));
+    assert.equal(c.subscriptions.has('inventory'), false);
+    assert.equal(c.subscriptions.has('sales'), false);
+    assert.equal(c.subscriptions.has('users'), false);
+    assert.throws(() => c.api.saveProduct({ id: 'p1' }));
+    await assert.rejects(c.api.saveUser({ name: 'Otra', email: 'otra@example.com' }));
+    await c.api.completeSale(sale('cashier-sale'));
+    assert.equal(c.store.get(key('catalog', 'p1')).stock, 8);
+    assert.equal(c.store.get(key('sales', 'cashier-sale')).cashierUid, 'u1');
+    assert.equal(c.store.get(key('sales', 'cashier-sale')).lines.p1.buyPrice, undefined);
+    c.subscriptions.get('ana@example.com').callback({ exists: () => true, data: () => ({ role: 'cashier', active: false }) });
+    await assert.rejects(c.api.completeSale(sale('blocked')));
+    c.store.set(key('inventory', 'p1'), { code: '1', name: 'Martillo', category: 'Otros', stock: 10, price: 10, buyPrice: 5 });
+    c.store.set(key('costs', 'v1'), { buyPrice: 5, known: true, product: { code: '1', name: 'Martillo', category: 'Otros', price: 10, salePrice: 10, saleUnits: 1, unitsPerBox: 1, boxMode: false, boxSalePrice: null } });
+    await c.login();
+    await c.api.returnSale('cashier-sale');
+    assert.equal(c.store.get(key('catalog', 'p1')).stock, 10);
+    assert.equal(c.store.get(key('inventory', 'p1')).stock, 10);
+});
 
 test('product photo persists, survives ordinary edits and can be removed without deleting product', async () => {
     const c = client();
