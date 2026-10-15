@@ -3,7 +3,7 @@ import { getAuth, setPersistence, browserLocalPersistence, onAuthStateChanged, s
 import { getFirestore, collection, doc, getDocs, setDoc, deleteDoc, onSnapshot, runTransaction, serverTimestamp } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js';
 import { catalogProduct, cashierSale, expandCashierSale, historicalProduct } from './access.js?v=1';
 window.ferroAccess = { catalogProduct };
-import { businessDay, parseSaleDate, saleTotals, itemTotals, salesReport, displaySaleDate, withInventoryCosts } from './sales-report.js?v=box-2';
+import { businessDay, parseSaleDate, saleTotals, itemTotals, salesReport, displaySaleDate, withInventoryCosts } from './sales-report.js?v=roles-1';
 import { lineAmount, productValues, stockUnits, maxCartQuantity } from './pricing.js?v=box-2';
 import { inventoryReport } from './inventory-report.js?v=margins-1';
 import { readDeviceCache, saveDeviceCache, clearDeviceCache } from './device-cache.js?v=gallery-1';
