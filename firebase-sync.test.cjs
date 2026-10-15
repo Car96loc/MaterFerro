@@ -39,6 +39,7 @@ function client(store = new Map()) {
     };
     const source = fs.readFileSync(__dirname + '/firebase-sync.js', 'utf8').replace(/^import .*;\r?\n/gm, '');
     vm.runInNewContext(fs.readFileSync(__dirname + '/product-tools.js', 'utf8').replace(/^export /gm, ''), context);
+    vm.runInNewContext(fs.readFileSync(__dirname + '/photo-editor.js', 'utf8').replace(/^import .*;\r?\n/gm, '').replace(/^export /gm, ''), context);
     vm.runInNewContext(fs.readFileSync(__dirname + '/pricing.js', 'utf8').replace(/^export /gm, ''), context);
     vm.runInNewContext(fs.readFileSync(__dirname + '/inventory-report.js', 'utf8').replace(/^import .*;\r?\n/gm, '').replace(/^export /gm, ''), context);
     vm.runInNewContext(fs.readFileSync(__dirname + '/sales-report.js', 'utf8').replace(/^export /gm, ''), context);
@@ -64,6 +65,26 @@ test('product photo persists, survives ordinary edits and can be removed without
     await c.api.saveProduct({ ...product, photo: '' });
     assert.equal(c.store.get(key('inventory', 'photo')).photo, '');
     assert.equal(c.store.get(key('inventory', 'photo')).stock, 50);
+});
+
+test('gallery order, cover and deletion persist together; legacy edits preserve gallery', async () => {
+    const c = client();
+    await c.login();
+    const photos = ['data:image/jpeg;base64,YWJj', 'data:image/jpeg;base64,ZGVm'];
+    const product = { id: 'gallery', code: 'g', name: 'Galeria', category: 'Otros', stock: 10, photos };
+    await c.api.saveProduct(product, { create: true });
+    assert.equal(c.store.get(key('inventory', 'gallery')).photo, photos[0]);
+    await c.api.saveProduct({ ...product, photos: photos.slice().reverse() });
+    assert.equal(c.store.get(key('inventory', 'gallery')).photo, photos[1]);
+    const { photos: ignored, ...legacyEdit } = product;
+    await c.api.saveProduct(legacyEdit);
+    assert.equal(c.store.get(key('inventory', 'gallery')).photos.length, 2);
+    await c.api.saveProduct({ ...legacyEdit, photo: photos[1] });
+    assert.equal(c.store.get(key('inventory', 'gallery')).photos.length, 2);
+    await assert.rejects(c.api.saveProduct({ ...product, photos: Array(7).fill(photos[0]) }));
+    await c.api.saveProduct({ ...product, photos: [] });
+    assert.equal(c.store.get(key('inventory', 'gallery')).photo, '');
+    assert.equal(c.store.get(key('inventory', 'gallery')).photos.length, 0);
 });
 
 test('verified owner only, with no anonymous writes', async () => {

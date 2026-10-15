@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>FerroMaster Inventory & POS System</title>
+    <link rel="stylesheet" href="./vendor/cropper.min.css">
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -13,15 +14,22 @@
     <style>
         body { font-family: 'Inter', sans-serif; }
         [x-cloak] { display: none !important; }
-        .product-grid { align-content: start; align-items: start; }
-        .product-tile-photo { aspect-ratio: 4 / 3; }
+        .product-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-auto-rows: max-content; align-content: start; align-items: start; min-height: 0; overflow-y: auto; gap: 8px; padding: 8px; }
+        .product-tile { width: 100%; min-width: 0; height: auto; }
+        .product-tile-photo { position: relative; height: 112px; min-height: 112px; }
+        .product-tile-photo > img, .product-tile-photo > span { position: absolute; inset: 0; width: 100%; height: 100%; }
+        @media (min-width: 640px) { .product-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+        @media (min-width: 1280px) { .product-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+        @media (min-width: 1536px) { .product-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); } }
+        .photo-crop-stage { height: 320px; max-height: 50dvh; width: 100%; background: #f1f5f9; touch-action: none; overflow: hidden; }
+        .photo-crop-stage img { display: block; max-width: 100%; }
         .product-tile-body { display: flex; flex-direction: column; gap: 4px; padding: 7px; }
         .product-tile-name { font-size: 12px; line-height: 16px; height: 32px; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow-wrap: anywhere; }
         ::-webkit-scrollbar { width: 4px; height: 4px; }
         ::-webkit-scrollbar-track { background: #f1f5f9; }
         ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
     </style>
-    <script type="module" src="./firebase-sync.js?v=compact-photos-1"></script>
+    <script type="module" src="./firebase-sync.js?v=gallery-1"></script>
 </head>
 <body class="bg-slate-100 text-slate-800 h-full flex flex-col overflow-x-hidden" x-data="ferroApp()">
     <div x-cloak x-show="!authPending && !authReady" class="fixed inset-0 z-50 bg-slate-100 flex items-center justify-center p-4">
@@ -155,7 +163,7 @@
                         </select>
                     </div>
 
-                    <div class="product-grid flex-1 overflow-y-auto p-2 grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-2">
+                    <div class="product-grid flex-1">
                         <template x-for="item in filteredPosProducts" :key="item.id">
                             <div x-data="{ sellBox: false }" @click="addToCart(item, sellBox ? 'box' : 'unit')" :class="productInCart(item.id) ? '!bg-emerald-50 !border-emerald-600 ring-1 ring-emerald-600' : ''" class="product-tile relative bg-white border border-slate-200 rounded overflow-hidden min-w-0 cursor-pointer">
                                 <button type="button" x-cloak x-show="productInCart(item.id)" @click.stop="removeProductFromCart(item.id)" title="Quitar del carrito" :aria-label="'Quitar ' + item.name + ' del carrito'" class="absolute right-1 top-1 z-10 w-8 h-8 bg-white text-red-600 rounded flex items-center justify-center shadow"><i class="fa-solid fa-xmark"></i></button>
@@ -448,27 +456,54 @@
         </main>
     </div>
 
-    <div data-photo-viewer x-cloak x-show="photoPreview" @keydown.escape.window="photoPreview = null" @click.self="photoPreview = null" role="dialog" aria-modal="true" aria-label="Foto del producto" class="fixed inset-0 z-[80] bg-black/80 flex items-center justify-center p-4">
+    <div data-photo-crop x-cloak x-show="cropOpen" @keydown.escape.window="if (cropOpen) cancelPhotoCrop()" role="dialog" aria-modal="true" aria-label="Ajustar foto" class="fixed inset-0 z-[90] bg-black/80 flex items-center justify-center p-3">
+        <div class="w-full max-w-lg bg-white rounded overflow-hidden">
+            <div class="flex items-center justify-between p-3 border-b"><h2 class="font-semibold text-sm">Ajustar foto</h2><button type="button" @click="cancelPhotoCrop()" title="Cancelar" aria-label="Cancelar recorte" class="w-9 h-9"><i class="fa-solid fa-xmark"></i></button></div>
+            <div class="photo-crop-stage"><img x-ref="cropImage" alt="Encuadre de la foto"></div>
+            <div class="flex items-center justify-center gap-3 p-2 border-b">
+                <button type="button" @click="window.ferroPhotoEditor.cropAction('out')" :disabled="!cropReady" title="Alejar" aria-label="Alejar foto" class="w-10 h-10"><i class="fa-solid fa-magnifying-glass-minus"></i></button>
+                <button type="button" @click="window.ferroPhotoEditor.cropAction('in')" :disabled="!cropReady" title="Acercar" aria-label="Acercar foto" class="w-10 h-10"><i class="fa-solid fa-magnifying-glass-plus"></i></button>
+                <button type="button" @click="window.ferroPhotoEditor.cropAction('rotate')" :disabled="!cropReady" title="Girar" aria-label="Girar foto" class="w-10 h-10"><i class="fa-solid fa-rotate-right"></i></button>
+                <button type="button" @click="window.ferroPhotoEditor.cropAction('reset')" :disabled="!cropReady" title="Restablecer" aria-label="Restablecer encuadre" class="w-10 h-10"><i class="fa-solid fa-arrow-rotate-left"></i></button>
+            </div>
+            <div class="flex justify-end gap-2 p-3"><button type="button" @click="cancelPhotoCrop()" class="px-3 py-2 text-sm">Cancelar</button><button type="button" @click="confirmPhotoCrop()" :disabled="!cropReady" class="px-3 py-2 text-sm bg-emerald-700 text-white rounded disabled:opacity-40">Usar foto</button></div>
+        </div>
+    </div>
+    <div data-photo-viewer x-cloak x-show="photoPreview" @keydown.escape.window="photoPreview = null" @keydown.left.window="if (photoPreview) stepPhoto(-1)" @keydown.right.window="if (photoPreview) stepPhoto(1)" @click.self="photoPreview = null" role="dialog" aria-modal="true" aria-label="Foto del producto" class="fixed inset-0 z-[80] bg-black/80 flex items-center justify-center p-4">
         <div class="relative bg-white rounded max-w-3xl w-full p-4">
             <div class="flex items-center justify-between gap-3 mb-3"><h2 class="text-base font-semibold break-words" x-text="photoPreview?.name"></h2><button type="button" @click="photoPreview = null" title="Cerrar foto" aria-label="Cerrar foto" class="w-10 h-10 shrink-0"><i class="fa-solid fa-xmark"></i></button></div>
             <img :src="photoPreview?.photo || undefined" :alt="photoPreview?.name || ''" class="w-full max-h-[75dvh] object-contain">
+            <div x-show="photoPreview?.photos.length > 1" class="flex items-center justify-center gap-4 mt-2"><button type="button" @click="stepPhoto(-1)" title="Anterior" aria-label="Foto anterior" class="w-10 h-10"><i class="fa-solid fa-chevron-left"></i></button><span class="text-xs" x-text="photoPreview ? (photoPreview.index + 1) + ' / ' + photoPreview.photos.length : ''"></span><button type="button" @click="stepPhoto(1)" title="Siguiente" aria-label="Foto siguiente" class="w-10 h-10"><i class="fa-solid fa-chevron-right"></i></button></div>
         </div>
     </div>
     <!-- Modals (Product, Delete, Checkout, Detail, Auth) -->
     <div x-show="isProductModalOpen" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-3 md:p-4" style="display: none;">
-        <div @click.away="if (!$event.target.closest('[data-photo-viewer]')) closeProductModal()" class="bg-white rounded-2xl shadow-xl w-full max-w-lg overflow-hidden border border-slate-200 max-h-[90vh] flex flex-col">
+        <div @click.away="if (!$event.target.closest('[data-photo-viewer], [data-photo-crop]')) closeProductModal()" class="bg-white rounded-2xl shadow-xl w-full max-w-lg overflow-hidden border border-slate-200 max-h-[90vh] flex flex-col">
             <div class="p-4 bg-slate-900 text-white flex justify-between items-center shrink-0">
                 <h3 class="font-bold text-base" x-text="isEditing ? 'Editar Producto' : 'Nuevo Producto'"></h3>
                 <button @click="closeProductModal()" class="text-slate-400 hover:text-white transition"><i class="fa-solid fa-xmark text-lg"></i></button>
             </div>
             <form @submit.prevent="saveProduct()" class="p-4 md:p-6 space-y-4 overflow-y-auto flex-1">
-                <div class="flex items-center gap-3">
-                    <button type="button" x-show="productForm.photo" @click="openPhoto(productForm)" title="Ampliar foto" class="w-20 h-20 shrink-0 border rounded bg-white overflow-hidden"><img :src="productForm.photo || undefined" alt="Foto del producto" class="w-full h-full object-contain"></button>
-                    <label class="text-sm font-medium min-w-0">Foto del producto
-                        <input type="file" accept="image/jpeg,image/png,image/webp" @change="selectProductPhoto($event)" :disabled="photoBusy" class="block mt-2 w-full max-w-xs text-xs">
+                <div class="space-y-3">
+                    <label class="flex flex-col items-center justify-center gap-1 h-24 border border-dashed border-blue-300 bg-blue-50/40 rounded cursor-pointer text-center relative">
+                        <i class="fa-regular fa-image text-xl text-blue-600"></i>
+                        <span class="text-xs font-medium text-slate-700">Subir imagen del producto</span>
+                        <span class="text-[10px] text-slate-500">JPG, PNG, WebP · Hasta 6 fotos</span>
+                        <input type="file" multiple accept="image/jpeg,image/png,image/webp" @change="selectProductPhotos($event)" :disabled="photoBusy || photosFor(productForm).length >= 6" aria-label="Subir fotos del producto" class="absolute inset-0 opacity-0 cursor-pointer w-full h-full disabled:cursor-not-allowed">
                     </label>
-                    <i x-show="photoBusy" class="fa-solid fa-spinner fa-spin" aria-label="Procesando foto"></i>
-                    <button type="button" x-show="productForm.photo || photoBusy" @click="removeProductPhoto()" title="Quitar foto" aria-label="Quitar foto" class="w-9 h-9 shrink-0 text-red-600"><i class="fa-solid fa-trash"></i></button>
+                    <div class="flex gap-2 overflow-x-auto pb-2 pt-1">
+                        <template x-for="(photo, index) in photosFor(productForm)" :key="index">
+                            <div class="relative w-20 shrink-0">
+                                <button type="button" @click="startPhotoCrop(photo, index)" :disabled="photoBusy" title="Ajustar encuadre" :aria-label="'Ajustar foto ' + (index + 1)" :class="index === 0 ? 'border-blue-500 ring-1 ring-blue-500' : 'border-slate-200'" class="block w-20 h-16 border rounded overflow-hidden bg-white"><img :src="photo" :alt="'Foto ' + (index + 1)" class="w-full h-full object-contain"></button>
+                                <button type="button" @click="deletePhoto(index)" :disabled="photoBusy" title="Eliminar foto" :aria-label="'Eliminar foto ' + (index + 1)" class="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-red-600 text-white flex items-center justify-center"><i class="fa-solid fa-xmark text-xs"></i></button>
+                                <div class="flex items-center justify-between mt-1">
+                                    <button type="button" @click="movePhoto(index, -1)" :disabled="photoBusy || index === 0" title="Mover antes" aria-label="Mover foto antes" class="w-6 h-6 text-slate-600 disabled:opacity-20"><i class="fa-solid fa-arrow-left text-xs"></i></button>
+                                    <span class="text-[9px] text-blue-700" x-text="index === 0 ? 'Portada' : index + 1"></span>
+                                    <button type="button" @click="movePhoto(index, 1)" :disabled="photoBusy || index === photosFor(productForm).length - 1" title="Mover despues" aria-label="Mover foto despues" class="w-6 h-6 text-slate-600 disabled:opacity-20"><i class="fa-solid fa-arrow-right text-xs"></i></button>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
                 </div>
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
@@ -699,6 +734,10 @@
                 photoPreview: null,
                 photoBusy: false,
                 photoRequest: 0,
+                cropOpen: false,
+                cropReady: false,
+                cropIndex: -1,
+                cropQueue: [],
                 isProductModalOpen: false,
                 isCheckoutOpen: false,
                 isDeleteModalOpen: false,
@@ -969,19 +1008,71 @@
                 productInCart(id) { return this.cart.some(item => String(item.id) === String(id)); },
                 cartProduct(item) { return this.inventory.find(product => String(product.id) === String(item.id)) || item; },
                 removeProductFromCart(id) { this.cart = this.cart.filter(item => String(item.id) !== String(id)); },
-                openPhoto(item) { if (item.photo) this.photoPreview = { photo: item.photo, name: item.name }; },
-                async selectProductPhoto(event) {
-                    const file = event.target.files?.[0];
-                    if (!file) return;
-                    const request = ++this.photoRequest;
-                    this.photoBusy = true;
-                    try {
-                        const photo = await window.ferroProductTools.compressProductPhoto(file);
-                        if (request === this.photoRequest) this.productForm.photo = photo;
-                    } catch (error) { if (request === this.photoRequest) this.showNotification(error.message); }
-                    finally { if (request === this.photoRequest) this.photoBusy = false; event.target.value = ''; }
+                photosFor(item) { return Array.isArray(item.photos) ? item.photos : item.photo ? [item.photo] : []; },
+                openPhoto(item) {
+                    const photos = this.photosFor(item);
+                    if (photos.length) this.photoPreview = { photo: photos[0], photos, index: 0, name: item.name };
                 },
-                removeProductPhoto() { this.photoRequest++; this.photoBusy = false; this.productForm.photo = ''; },
+                stepPhoto(direction) {
+                    const view = this.photoPreview;
+                    if (!view) return;
+                    view.index = (view.index + direction + view.photos.length) % view.photos.length;
+                    view.photo = view.photos[view.index];
+                },
+                async selectProductPhotos(event) {
+                    const files = Array.from(event.target.files || []);
+                    event.target.value = '';
+                    if (!files.length) return;
+                    const slots = 6 - this.photosFor(this.productForm).length;
+                    if (files.length > slots) { this.showNotification('Puedes guardar hasta 6 fotos por producto.'); return; }
+                    this.cropQueue = files;
+                    await this.startPhotoCrop(this.cropQueue.shift());
+                },
+                async startPhotoCrop(source, index = -1) {
+                    const request = ++this.photoRequest;
+                    this.cropIndex = index;
+                    this.cropOpen = true;
+                    this.cropReady = false;
+                    this.photoBusy = true;
+                    await this.$nextTick();
+                    if (request !== this.photoRequest) return;
+                    try {
+                        await window.ferroPhotoEditor.mountCropper(this.$refs.cropImage, source, () => {
+                            if (request === this.photoRequest) this.cropReady = true;
+                        });
+                    } catch (error) {
+                        if (request === this.photoRequest) { this.cancelPhotoCrop(); this.showNotification(error.message); }
+                    }
+                },
+                confirmPhotoCrop() {
+                    if (!this.cropReady) return;
+                    try {
+                        const photo = window.ferroPhotoEditor.exportCrop();
+                        const photos = this.photosFor(this.productForm).slice();
+                        if (this.cropIndex < 0) photos.push(photo); else photos[this.cropIndex] = photo;
+                        this.productForm.photos = photos;
+                        this.productForm.photo = photos[0] || '';
+                        const next = this.cropQueue.shift();
+                        if (next) this.startPhotoCrop(next); else this.cancelPhotoCrop();
+                    } catch (error) { this.showNotification(error.message); }
+                },
+                cancelPhotoCrop() {
+                    this.photoRequest++;
+                    window.ferroPhotoEditor?.disposeCropper();
+                    this.cropOpen = false; this.cropReady = false; this.photoBusy = false; this.cropQueue = [];
+                },
+                movePhoto(index, direction) {
+                    const photos = this.photosFor(this.productForm).slice();
+                    const target = index + direction;
+                    if (target < 0 || target >= photos.length) return;
+                    [photos[index], photos[target]] = [photos[target], photos[index]];
+                    this.productForm.photos = photos; this.productForm.photo = photos[0] || '';
+                },
+                deletePhoto(index) {
+                    const photos = this.photosFor(this.productForm).slice();
+                    photos.splice(index, 1);
+                    this.productForm.photos = photos; this.productForm.photo = photos[0] || '';
+                },
 
                 addToCart(product, presentation = 'unit') {
                     if (presentation === 'box' && (!product.boxMode || product.boxSalePrice == null)) {
@@ -1044,8 +1135,7 @@
                 },
 
                 openProductModal() {
-                    this.photoRequest++;
-                    this.photoBusy = false;
+                    this.cancelPhotoCrop();
                     this.isEditing = false;
                     const maxCodeNum = this.inventory.reduce((max, item) => {
                         const num = parseInt(item.code);
@@ -1055,6 +1145,7 @@
                     this.productForm = { 
                         id: null, 
                         photo: '',
+                        photos: [],
                         code: (maxCodeNum + 1).toString(),
                         boxMode: false, unitsPerBox: 100, boxCost: 0, boxCount: 1, saleUnits: 2, salePrice: 0.05, boxSalePrice: '',
                         name: '',
@@ -1067,14 +1158,14 @@
                 },
 
                 editProduct(item) {
-                    this.photoRequest++;
-                    this.photoBusy = false;
+                    this.cancelPhotoCrop();
                     this.isEditing = true;
-                    this.productForm = { boxMode: false, unitsPerBox: 100, boxCost: 0, boxCount: 1, saleUnits: 2, salePrice: 0.05, boxSalePrice: '', ...item };
+                    this.productForm = { boxMode: false, unitsPerBox: 100, boxCost: 0, boxCount: 1, saleUnits: 2, salePrice: 0.05, boxSalePrice: '', ...item, photos: this.photosFor(item).slice() };
                     this.isProductModalOpen = true;
                 },
 
                 closeProductModal() {
+                    this.cancelPhotoCrop();
                     this.photoRequest++;
                     this.photoBusy = false;
                     this.isProductModalOpen = false;
@@ -1097,6 +1188,7 @@
                         name: String(this.productForm.name).trim(),
                         category: String(this.productForm.category),
                         photo: this.productForm.photo || '',
+                        photos: this.photosFor(this.productForm),
                         ...calculated
                     };
 

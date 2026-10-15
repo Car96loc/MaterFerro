@@ -17,7 +17,7 @@ export function saveDeviceCache(kind, items) {
     } catch {
         // Keep current stock cached even when photos exceed the browser's storage quota.
         try {
-            value.inventory = value.inventory.map(({ photo, ...item }) => item);
+            value.inventory = value.inventory.map(({ photo, photos, ...item }) => item);
             localStorage.setItem(cacheKey, JSON.stringify(value));
         } catch { /* Storage may be blocked; cloud sync remains authoritative. */ }
     }

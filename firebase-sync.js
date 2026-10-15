@@ -4,8 +4,10 @@ import { getFirestore, collection, doc, setDoc, deleteDoc, onSnapshot, runTransa
 import { businessDay, parseSaleDate, saleTotals, itemTotals, salesReport, displaySaleDate, withInventoryCosts } from './sales-report.js?v=box-2';
 import { lineAmount, productValues, stockUnits, maxCartQuantity } from './pricing.js?v=box-2';
 import { inventoryReport } from './inventory-report.js?v=margins-1';
-import { readDeviceCache, saveDeviceCache, clearDeviceCache } from './device-cache.js?v=photos-1';
-import { matchesProduct, compressProductPhoto, validProductPhoto } from './product-tools.js?v=1';
+import { readDeviceCache, saveDeviceCache, clearDeviceCache } from './device-cache.js?v=gallery-1';
+import { matchesProduct, compressProductPhoto, validProductPhoto } from './product-tools.js?v=gallery-1';
+import { productPhotos, mountCropper, disposeCropper, cropAction, exportCrop } from './photo-editor.js?v=gallery-1';
+window.ferroPhotoEditor = { productPhotos, mountCropper, disposeCropper, cropAction, exportCrop };
 window.ferroProductTools = { matchesProduct, compressProductPhoto };
 
 window.ferroReports = { businessDay, saleTotals, itemTotals, salesReport, displaySaleDate, withInventoryCosts };
@@ -111,10 +113,12 @@ window.ferroFirebase = {
             const previous = await transaction.get(productRef);
             if (create && previous.exists()) throw new Error('Ese codigo ya existe. Cierra y abre Nuevo producto para generar otro.');
             if (!create && !previous.exists()) throw new Error('Este producto ya fue eliminado en otro dispositivo.');
-            const photo = item.photo === undefined ? (previous.data()?.photo || '') : item.photo;
-            if (!validProductPhoto(photo)) throw new Error('La foto no es valida o es demasiado grande.');
+            const before = previous.data() || {};
+            const photos = item.photos === undefined ? (item.photo === undefined || item.photo === before.photo ? productPhotos(before) : item.photo ? [item.photo] : []) : item.photos;
+            if (!Array.isArray(photos) || photos.length > 6 || photos.some(photo => !photo || !validProductPhoto(photo))) throw new Error('Usa hasta 6 fotos comprimidas validas.');
+            const photo = photos[0] || '';
             transaction.set(productRef, {
-            photo,
+            photo, photos,
             code: String(item.code), name: String(item.name), category: String(item.category),
             buyPrice: Number(item.buyPrice || 0), price: Number(item.price || 0), stock: Number(item.stock || 0),
             boxMode: !!item.boxMode, unitsPerBox: Number(item.unitsPerBox || 1), boxCost: Number(item.boxCost ?? item.buyPrice ?? 0),

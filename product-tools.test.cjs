@@ -79,19 +79,25 @@ test('photo compression bounds dimensions, produces JPEG and releases temporary 
 
 test('cancelled photo processing cannot overwrite a different product form', async () => {
     let finish;
-    const context = { window: { ferroReports: { businessDay: () => '2026-10-15' }, ferroProductTools: {
-        compressProductPhoto: () => new Promise(resolve => { finish = resolve; })
+    let mounted;
+    const started = new Promise(resolve => { mounted = resolve; });
+    const context = { window: { ferroReports: { businessDay: () => '2026-10-15' }, ferroPhotoEditor: {
+        disposeCropper() {},
+        mountCropper: (element, source, ready) => new Promise(resolve => { finish = () => { ready(); resolve(); }; mounted(); })
     } } };
     const html = fs.readFileSync(__dirname + '/index.html', 'utf8');
     vm.runInNewContext([...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].at(-1)[1], context);
     const app = context.ferroApp();
-    const input = { files: [{}], value: 'old.jpg' };
-    const pending = app.selectProductPhoto({ target: input });
+    app.$nextTick = async () => {};
+    app.$refs = { cropImage: {} };
+    const pending = app.startPhotoCrop({});
+    await started;
     assert.equal(app.photoBusy, true);
     app.closeProductModal();
     app.editProduct({ id: 'different', photo: '' });
-    finish('data:image/jpeg;base64,YWJj');
+    finish();
     await pending;
     assert.equal(app.productForm.photo, '');
     assert.equal(app.photoBusy, false);
+    assert.equal(app.cropReady, false);
 });
