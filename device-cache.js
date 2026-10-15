@@ -10,11 +10,17 @@ export function readDeviceCache() {
 }
 
 export function saveDeviceCache(kind, items) {
+    const value = readDeviceCache() || { owner: cacheOwner, inventory: [], sales: [] };
+    value[kind] = items;
     try {
-        const value = readDeviceCache() || { owner: cacheOwner, inventory: [], sales: [] };
-        value[kind] = items;
         localStorage.setItem(cacheKey, JSON.stringify(value));
-    } catch { /* Storage can be unavailable or full; cloud sync remains authoritative. */ }
+    } catch {
+        // Keep current stock cached even when photos exceed the browser's storage quota.
+        try {
+            value.inventory = value.inventory.map(({ photo, ...item }) => item);
+            localStorage.setItem(cacheKey, JSON.stringify(value));
+        } catch { /* Storage may be blocked; cloud sync remains authoritative. */ }
+    }
 }
 
 export function clearDeviceCache() {

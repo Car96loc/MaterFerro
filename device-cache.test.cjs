@@ -38,3 +38,17 @@ test('corrupt storage, other owners and blocked storage do not break opening', (
     assert.doesNotThrow(() => c.saveDeviceCache('inventory', []));
     assert.doesNotThrow(() => c.clearDeviceCache());
 });
+
+test('photo quota overflow still caches latest product stock without altering cloud photo data', () => {
+    const c = cache();
+    const write = c.localStorage.setItem;
+    c.localStorage.setItem = (key, value) => {
+        if (value.includes('photo')) throw new Error('quota');
+        write(key, value);
+    };
+    const items = [{ id: '1', stock: 25, photo: 'large-photo' }];
+    c.saveDeviceCache('inventory', items);
+    assert.equal(c.readDeviceCache().inventory[0].stock, 25);
+    assert.equal(c.readDeviceCache().inventory[0].photo, undefined);
+    assert.equal(items[0].photo, 'large-photo');
+});

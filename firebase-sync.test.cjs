@@ -38,6 +38,7 @@ function client(store = new Map()) {
         }
     };
     const source = fs.readFileSync(__dirname + '/firebase-sync.js', 'utf8').replace(/^import .*;\r?\n/gm, '');
+    vm.runInNewContext(fs.readFileSync(__dirname + '/product-tools.js', 'utf8').replace(/^export /gm, ''), context);
     vm.runInNewContext(fs.readFileSync(__dirname + '/pricing.js', 'utf8').replace(/^export /gm, ''), context);
     vm.runInNewContext(fs.readFileSync(__dirname + '/inventory-report.js', 'utf8').replace(/^import .*;\r?\n/gm, '').replace(/^export /gm, ''), context);
     vm.runInNewContext(fs.readFileSync(__dirname + '/sales-report.js', 'utf8').replace(/^export /gm, ''), context);
@@ -48,6 +49,22 @@ function client(store = new Map()) {
 }
 const key = (kind, id) => `artifacts/ferromaster-pos/public/data/${kind}/${id}`;
 const sale = id => ({ id, items: [{ id: 'p1', name: 'Martillo', qty: 2, price: 10 }], total: 20, itemsCount: 2 });
+
+test('product photo persists, survives ordinary edits and can be removed without deleting product', async () => {
+    const c = client();
+    await c.login();
+    const product = { id: 'photo', code: '77', name: 'Perno', category: 'Otros', stock: 50, buyPrice: 1, price: 2, photo: 'data:image/jpeg;base64,YWJj' };
+    await c.api.saveProduct(product, { create: true });
+    assert.equal(c.store.get(key('inventory', 'photo')).photo, product.photo);
+    const { photo, ...ordinaryEdit } = product;
+    await c.api.saveProduct({ ...ordinaryEdit, name: 'Perno nuevo' });
+    assert.equal(c.store.get(key('inventory', 'photo')).photo, photo);
+    await assert.rejects(c.api.saveProduct({ ...product, photo: 'data:image/svg+xml;base64,YWJj' }));
+    assert.equal(c.store.get(key('inventory', 'photo')).photo, photo);
+    await c.api.saveProduct({ ...product, photo: '' });
+    assert.equal(c.store.get(key('inventory', 'photo')).photo, '');
+    assert.equal(c.store.get(key('inventory', 'photo')).stock, 50);
+});
 
 test('verified owner only, with no anonymous writes', async () => {
     const c = client();

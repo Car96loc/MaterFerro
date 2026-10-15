@@ -17,7 +17,7 @@
         ::-webkit-scrollbar-track { background: #f1f5f9; }
         ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
     </style>
-    <script type="module" src="./firebase-sync.js?v=device-cache-1"></script>
+    <script type="module" src="./firebase-sync.js?v=products-2"></script>
 </head>
 <body class="bg-slate-100 text-slate-800 h-full flex flex-col overflow-x-hidden" x-data="ferroApp()">
     <div x-cloak x-show="!authPending && !authReady" class="fixed inset-0 z-50 bg-slate-100 flex items-center justify-center p-4">
@@ -66,7 +66,7 @@
         
         <div x-show="mobileMenuOpen" @click="mobileMenuOpen = false" x-transition.opacity class="fixed inset-0 bg-slate-900/60 z-30 md:hidden backdrop-blur-sm" style="display: none;"></div>
 
-        <aside :class="mobileMenuOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'" class="fixed md:static inset-y-0 left-0 z-40 w-64 bg-slate-800 text-slate-300 flex flex-col border-r border-slate-700 transition-transform duration-300 ease-in-out shrink-0">
+        <aside x-cloak :class="mobileMenuOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'" class="fixed md:static inset-y-0 left-0 z-40 w-64 bg-slate-800 text-slate-300 flex flex-col border-r border-slate-700 shrink-0">
             <div class="p-4 flex items-center justify-between md:hidden border-b border-slate-700 bg-slate-900">
                 <span class="font-bold text-white text-sm">Menú de Navegación</span>
                 <button @click="mobileMenuOpen = false" class="text-slate-400 hover:text-white p-1">
@@ -140,7 +140,8 @@
                     <div class="p-3 md:p-4 border-b border-slate-200 bg-slate-50 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
                         <div class="relative flex-1">
                             <i class="fa-solid fa-search absolute left-3.5 top-3 text-slate-400"></i>
-                            <input type="text" x-model="posSearch" placeholder="Buscar por código (#) o nombre de producto..." class="w-full pl-10 pr-4 py-2 bg-white border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-500">
+                            <input x-ref="posSearchInput" type="text" x-model="posSearch" placeholder="Buscar por código (#) o nombre de producto..." class="w-full pl-10 pr-12 py-2 bg-white border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-500">
+                            <button type="button" x-cloak x-show="posSearch" @click="posSearch = ''; $refs.posSearchInput.focus()" title="Limpiar busqueda" aria-label="Limpiar busqueda" class="absolute right-1 top-1 w-9 h-8 flex items-center justify-center text-slate-500 hover:text-red-600"><i class="fa-solid fa-xmark"></i></button>
                         </div>
                         <select x-model="posCategory" class="bg-white border border-slate-300 rounded-xl px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500">
                             <option value="">Todas las Categorías</option>
@@ -152,9 +153,11 @@
 
                     <div class="flex-1 overflow-y-auto p-3 md:p-4 grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-3 md:gap-4">
                         <template x-for="item in filteredPosProducts" :key="item.id">
-                            <div x-data="{ sellBox: false }" @click="addToCart(item, sellBox ? 'box' : 'unit')" class="bg-white border border-slate-200 rounded-lg p-3 flex flex-col justify-between hover:border-amber-500 transition group min-w-0 cursor-pointer">
+                            <div x-data="{ sellBox: false }" @click="addToCart(item, sellBox ? 'box' : 'unit')" :class="productInCart(item.id) ? '!bg-emerald-100 !border-emerald-600 ring-1 ring-emerald-600' : ''" class="relative bg-white border border-slate-200 rounded-lg p-3 pt-10 flex flex-col justify-between hover:border-amber-500 transition group min-w-0 cursor-pointer">
+                                <button type="button" x-cloak x-show="productInCart(item.id)" @click.stop="removeProductFromCart(item.id)" title="Quitar del carrito" :aria-label="'Quitar ' + item.name + ' del carrito'" class="absolute right-1 top-1 z-10 w-8 h-8 bg-white text-red-600 rounded flex items-center justify-center shadow"><i class="fa-solid fa-xmark"></i></button>
+                                <button type="button" x-show="item.photo" @click.stop="openPhoto(item)" :aria-label="'Ver foto de ' + item.name" title="Ampliar foto" class="w-full h-24 mb-2 bg-white rounded overflow-hidden"><img :src="item.photo || undefined" :alt="item.name" loading="lazy" class="w-full h-full object-contain"></button>
                                 <div>
-                                    <div class="flex justify-between items-start mb-1.5">
+                                    <div class="flex flex-wrap gap-1 justify-between items-start mb-1.5">
                                         <span class="text-[9px] md:text-[10px] font-semibold bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded truncate max-w-[90px]" x-text="item.category"></span>
                                         <span class="text-[11px] md:text-xs font-bold text-slate-500" x-text="'Stock: ' + item.stock"></span>
                                     </div>
@@ -184,7 +187,7 @@
 
                 <div x-show="mobileCartOpen" @click="mobileCartOpen = false" x-transition.opacity class="fixed inset-0 bg-slate-900/60 z-40 lg:hidden backdrop-blur-sm" style="display: none;"></div>
 
-                <div :class="mobileCartOpen ? 'translate-x-0' : 'translate-x-full lg:translate-x-0'" class="fixed lg:static inset-y-0 right-0 z-50 w-full sm:w-96 bg-white shadow-2xl lg:shadow-sm border-l lg:border border-slate-200 flex flex-col overflow-hidden transition-transform duration-300 ease-in-out shrink-0">
+                <div x-cloak :class="mobileCartOpen ? 'translate-x-0' : 'translate-x-full lg:translate-x-0'" class="fixed lg:static inset-y-0 right-0 z-50 w-full sm:w-96 bg-white shadow-2xl lg:shadow-sm border-l lg:border border-slate-200 flex flex-col overflow-hidden shrink-0">
                     <div class="p-4 border-b border-slate-200 bg-slate-50 flex justify-between items-center">
                         <h3 class="font-bold text-slate-800 flex items-center space-x-2">
                             <i class="fa-solid fa-cart-shopping text-amber-500"></i>
@@ -257,7 +260,8 @@
                 <div class="p-3 md:p-4 border-b border-slate-200 bg-slate-50 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
                     <div class="relative flex-1">
                         <i class="fa-solid fa-search absolute left-3.5 top-3 text-slate-400"></i>
-                        <input type="text" x-model="inventorySearch" placeholder="Buscar por código, nombre o categoría..." class="w-full pl-10 pr-4 py-2 bg-white border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-500">
+                        <input x-ref="inventorySearchInput" type="text" x-model="inventorySearch" placeholder="Buscar por código, nombre o categoría..." class="w-full pl-10 pr-12 py-2 bg-white border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-500">
+                            <button type="button" x-cloak x-show="inventorySearch" @click="inventorySearch = ''; $refs.inventorySearchInput.focus()" title="Limpiar busqueda" aria-label="Limpiar busqueda" class="absolute right-1 top-1 w-9 h-8 flex items-center justify-center text-slate-500 hover:text-red-600"><i class="fa-solid fa-xmark"></i></button>
                     </div>
                     <button @click="openProductModal()" class="bg-amber-500 hover:bg-amber-600 text-slate-900 font-bold px-4 py-2 rounded-xl text-sm transition flex items-center justify-center space-x-2 shadow-sm">
                         <i class="fa-solid fa-plus"></i>
@@ -287,7 +291,10 @@
                                 <tr class="hover:bg-slate-50 transition">
                                     <td class="p-3 text-xs text-slate-500 font-bold text-center" x-text="index + 1"></td>
                                     <td class="p-3 font-mono text-xs font-bold text-slate-700 text-center bg-slate-50/50" x-text="item.code"></td>
-                                    <td class="p-3 font-semibold text-slate-800" x-text="item.name"></td>
+                                    <td class="p-3 font-semibold text-slate-800"><div class="flex items-center gap-3">
+                                        <button type="button" x-show="item.photo" @click="openPhoto(item)" :aria-label="'Ver foto de ' + item.name" title="Ampliar foto" class="w-12 h-12 shrink-0 bg-white border rounded overflow-hidden"><img :src="item.photo || undefined" :alt="item.name" loading="lazy" class="w-full h-full object-contain"></button>
+                                        <span x-text="item.name"></span>
+                                    </div></td>
                                     <td class="p-3">
                                         <span class="text-xs bg-slate-100 text-slate-700 px-2.5 py-1 rounded-full font-medium" x-text="item.category"></span>
                                     </td>
@@ -434,14 +441,28 @@
         </main>
     </div>
 
+    <div data-photo-viewer x-cloak x-show="photoPreview" @keydown.escape.window="photoPreview = null" @click.self="photoPreview = null" role="dialog" aria-modal="true" aria-label="Foto del producto" class="fixed inset-0 z-[80] bg-black/80 flex items-center justify-center p-4">
+        <div class="relative bg-white rounded max-w-3xl w-full p-4">
+            <div class="flex items-center justify-between gap-3 mb-3"><h2 class="text-base font-semibold break-words" x-text="photoPreview?.name"></h2><button type="button" @click="photoPreview = null" title="Cerrar foto" aria-label="Cerrar foto" class="w-10 h-10 shrink-0"><i class="fa-solid fa-xmark"></i></button></div>
+            <img :src="photoPreview?.photo || undefined" :alt="photoPreview?.name || ''" class="w-full max-h-[75dvh] object-contain">
+        </div>
+    </div>
     <!-- Modals (Product, Delete, Checkout, Detail, Auth) -->
     <div x-show="isProductModalOpen" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-3 md:p-4" style="display: none;">
-        <div @click.away="closeProductModal()" class="bg-white rounded-2xl shadow-xl w-full max-w-lg overflow-hidden border border-slate-200 max-h-[90vh] flex flex-col">
+        <div @click.away="if (!$event.target.closest('[data-photo-viewer]')) closeProductModal()" class="bg-white rounded-2xl shadow-xl w-full max-w-lg overflow-hidden border border-slate-200 max-h-[90vh] flex flex-col">
             <div class="p-4 bg-slate-900 text-white flex justify-between items-center shrink-0">
                 <h3 class="font-bold text-base" x-text="isEditing ? 'Editar Producto' : 'Nuevo Producto'"></h3>
                 <button @click="closeProductModal()" class="text-slate-400 hover:text-white transition"><i class="fa-solid fa-xmark text-lg"></i></button>
             </div>
             <form @submit.prevent="saveProduct()" class="p-4 md:p-6 space-y-4 overflow-y-auto flex-1">
+                <div class="flex items-center gap-3">
+                    <button type="button" x-show="productForm.photo" @click="openPhoto(productForm)" title="Ampliar foto" class="w-20 h-20 shrink-0 border rounded bg-white overflow-hidden"><img :src="productForm.photo || undefined" alt="Foto del producto" class="w-full h-full object-contain"></button>
+                    <label class="text-sm font-medium min-w-0">Foto del producto
+                        <input type="file" accept="image/jpeg,image/png,image/webp" @change="selectProductPhoto($event)" :disabled="photoBusy" class="block mt-2 w-full max-w-xs text-xs">
+                    </label>
+                    <i x-show="photoBusy" class="fa-solid fa-spinner fa-spin" aria-label="Procesando foto"></i>
+                    <button type="button" x-show="productForm.photo || photoBusy" @click="removeProductPhoto()" title="Quitar foto" aria-label="Quitar foto" class="w-9 h-9 shrink-0 text-red-600"><i class="fa-solid fa-trash"></i></button>
+                </div>
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                         <label class="block text-xs font-semibold text-slate-700 uppercase mb-1">Código</label>
@@ -509,7 +530,7 @@
                 </div>
                 <div class="flex justify-end space-x-3 pt-4 border-t border-slate-200">
                     <button type="button" @click="closeProductModal()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-sm font-medium transition">Cancelar</button>
-                    <button type="submit" class="px-5 py-2 bg-amber-500 hover:bg-amber-600 text-slate-900 rounded-xl text-sm font-bold shadow transition">Guardar Producto</button>
+                    <button type="submit" :disabled="photoBusy" class="px-5 py-2 bg-amber-500 hover:bg-amber-600 text-slate-900 rounded-xl text-sm font-bold shadow transition disabled:opacity-50">Guardar Producto</button>
                 </div>
             </form>
         </div>
@@ -668,6 +689,9 @@
                 posSearch: '',
                 posCategory: '',
                 inventorySearch: '',
+                photoPreview: null,
+                photoBusy: false,
+                photoRequest: 0,
                 isProductModalOpen: false,
                 isCheckoutOpen: false,
                 isDeleteModalOpen: false,
@@ -925,20 +949,31 @@
 
                 get filteredPosProducts() {
                     return this.inventory.filter(item => {
-                        const matchesSearch = item.name.toLowerCase().includes(this.posSearch.toLowerCase()) || item.code.toString().includes(this.posSearch.trim());
+                        const matchesSearch = window.ferroProductTools.matchesProduct(item, this.posSearch);
                         const matchesCategory = this.posCategory === '' || item.category === this.posCategory;
                         return matchesSearch && matchesCategory;
                     });
                 },
 
                 get filteredInventory() {
-                    return this.inventory.filter(item => {
-                        const query = this.inventorySearch.toLowerCase().trim();
-                        return item.name.toLowerCase().includes(query) || 
-                                item.code.toString().includes(query) ||
-                                item.category.toLowerCase().includes(query);
-                    });
+                    return this.inventory.filter(item => window.ferroProductTools.matchesProduct(item, this.inventorySearch));
                 },
+
+                productInCart(id) { return this.cart.some(item => String(item.id) === String(id)); },
+                removeProductFromCart(id) { this.cart = this.cart.filter(item => String(item.id) !== String(id)); },
+                openPhoto(item) { if (item.photo) this.photoPreview = { photo: item.photo, name: item.name }; },
+                async selectProductPhoto(event) {
+                    const file = event.target.files?.[0];
+                    if (!file) return;
+                    const request = ++this.photoRequest;
+                    this.photoBusy = true;
+                    try {
+                        const photo = await window.ferroProductTools.compressProductPhoto(file);
+                        if (request === this.photoRequest) this.productForm.photo = photo;
+                    } catch (error) { if (request === this.photoRequest) this.showNotification(error.message); }
+                    finally { if (request === this.photoRequest) this.photoBusy = false; event.target.value = ''; }
+                },
+                removeProductPhoto() { this.photoRequest++; this.photoBusy = false; this.productForm.photo = ''; },
 
                 addToCart(product, presentation = 'unit') {
                     if (presentation === 'box' && (!product.boxMode || product.boxSalePrice == null)) {
@@ -1001,6 +1036,8 @@
                 },
 
                 openProductModal() {
+                    this.photoRequest++;
+                    this.photoBusy = false;
                     this.isEditing = false;
                     const maxCodeNum = this.inventory.reduce((max, item) => {
                         const num = parseInt(item.code);
@@ -1009,6 +1046,7 @@
 
                     this.productForm = { 
                         id: null, 
+                        photo: '',
                         code: (maxCodeNum + 1).toString(),
                         boxMode: false, unitsPerBox: 100, boxCost: 0, boxCount: 1, saleUnits: 2, salePrice: 0.05, boxSalePrice: '',
                         name: '',
@@ -1021,16 +1059,21 @@
                 },
 
                 editProduct(item) {
+                    this.photoRequest++;
+                    this.photoBusy = false;
                     this.isEditing = true;
                     this.productForm = { boxMode: false, unitsPerBox: 100, boxCost: 0, boxCount: 1, saleUnits: 2, salePrice: 0.05, boxSalePrice: '', ...item };
                     this.isProductModalOpen = true;
                 },
 
                 closeProductModal() {
+                    this.photoRequest++;
+                    this.photoBusy = false;
                     this.isProductModalOpen = false;
                 },
 
                 async saveProduct() {
+                    if (this.photoBusy) return;
                     if (!this.productForm.name || !this.productForm.category) {
                         this.showNotification('Por favor complete los campos requeridos');
                         return;
@@ -1045,6 +1088,7 @@
                         code: String(this.productForm.code),
                         name: String(this.productForm.name).trim(),
                         category: String(this.productForm.category),
+                        photo: this.productForm.photo || '',
                         ...calculated
                     };
 
