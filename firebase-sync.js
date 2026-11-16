@@ -70,7 +70,8 @@ function status() {
     if (failedSubscriptions.size) { emit('ferro-sync', 'Error de sincronización'); return; }
     const expected = [...subscriptions.keys()].filter(kind => role === 'admin' || kind === 'inventory').length;
     const ready = snapshots.size === expected && snapshots.size > 0;
-    emit('ferro-sync', !navigator.onLine ? 'Sin conexión' : !allowed ? 'Sin sesión' : !ready ? 'Conectando...' : [...snapshots.values()].some(m => m.hasPendingWrites || m.fromCache) ? 'Pendiente de sincronizar' : 'Sincronizado');
+    const hasCachedInventory = !!readDeviceCache()?.inventory?.length;
+    emit('ferro-sync', !navigator.onLine ? 'Sin conexión' : ready && [...snapshots.values()].some(m => m.hasPendingWrites || m.fromCache) ? 'Inventario listo' : !allowed ? (hasCachedInventory ? 'Inventario listo' : 'Sin sesión') : !ready ? (hasCachedInventory ? 'Inventario listo' : 'Conectando...') : 'Sincronizado');
 }
 function fail(error) {
     console.error('Firebase:', error.code || error.message);
