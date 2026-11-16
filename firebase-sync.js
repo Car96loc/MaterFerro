@@ -237,7 +237,8 @@ window.ferroFirebase = {
             const nextStock = Math.round((currentStock - qty) * 1000) / 1000;
             transaction.update(inventoryRef, { stock: nextStock });
             if (catalogSnapshot.exists()) transaction.update(catalogRef, { stock: nextStock });
-            transaction.set(adjustmentRef, { id: adjustmentId, productId: String(id), productName: String(product.name || ''), type: 'own_use', quantity: qty, stockBefore: currentStock, stockAfter: nextStock, reason: String(reason).trim().slice(0, 160), createdAt: serverTimestamp(), createdBy: actor?.email || owner });
+            const costValue = Math.round(qty * Number(product.buyPrice || 0) * 100) / 100;
+            transaction.set(adjustmentRef, { id: adjustmentId, productId: String(id), productName: String(product.name || ''), type: 'own_use', quantity: qty, unitCost: Number(product.buyPrice || 0), costValue, stockBefore: currentStock, stockAfter: nextStock, reason: String(reason).trim().slice(0, 160), createdAt: serverTimestamp(), createdBy: actor?.email || owner });
         }));
     },
     saveSale(sale) { adminOnly(); return write(() => setDoc(ref('sales', sale.id), sale)); },
