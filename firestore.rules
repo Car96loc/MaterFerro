@@ -11,14 +11,23 @@ service cloud.firestore {
     function validLine(id, line, saleId) {
       let p = get(/$(base())/catalog/$(id)).data;
       let after = getAfter(/$(base())/catalog/$(id)).data;
-      return line.keys().hasOnly(['unitQty', 'boxQty', 'costVersion', 'unitsSold', 'stockBefore', 'stockAfter'])
-        && line.unitQty is int && line.unitQty >= 0 && line.boxQty is int && line.boxQty >= 0
-        && (line.boxQty == 0 || (p.boxMode && p.boxSalePrice != null))
+      return line.keys().hasOnly(['unitQty', 'boxQty', 'weightMode', 'weightQtyMilli', 'weightUnit', 'costVersion', 'unitsSold', 'stockBefore', 'stockAfter'])
         && line.costVersion == p.costVersion
+        && line.unitsSold is number && line.stockBefore is number && line.stockAfter is number
         && line.stockBefore == p.stock
-        && line.unitsSold == line.unitQty + line.boxQty * p.unitsPerBox && line.unitsSold > 0
+        && line.unitsSold > 0
         && line.stockAfter == p.stock - line.unitsSold && line.stockAfter >= 0
-        && after.stock == line.stockAfter && after.lastSaleId == saleId;
+        && after.stock == line.stockAfter && after.lastSaleId == saleId
+        && ((p.get('weightMode', false) == true && line.get('weightMode', false) == true
+              && line.weightQtyMilli is int && line.weightQtyMilli > 0
+              && p.weightUnitKg is number && p.weightUnitKg > 0
+              && line.weightUnit == p.weightUnit
+              && p.price * line.weightQtyMilli / 1000 >= 0.005
+              && line.unitsSold == line.weightQtyMilli * p.weightUnitKg / 1000)
+          || (p.get('weightMode', false) != true && line.get('weightMode', false) != true
+              && line.unitQty is int && line.unitQty >= 0 && line.boxQty is int && line.boxQty >= 0
+              && (line.boxQty == 0 || (p.boxMode && p.boxSalePrice != null))
+              && line.unitsSold == line.unitQty + line.boxQty * p.unitsPerBox));
     }
     function at(data, i, saleId) {
       return i >= data.productIds.size() || paired(data.productIds[i], saleId);

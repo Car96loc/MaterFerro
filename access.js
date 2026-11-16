@@ -1,7 +1,7 @@
 export const adminEmail = 'carzunsan@gmail.com';
 export function catalogProduct(item) {
-    const source = { boxMode: false, unitsPerBox: 1, saleUnits: 1, salePrice: item.price, boxSalePrice: null, photo: '', photos: [], ...item };
-    const fields = ['code', 'name', 'category', 'price', 'stock', 'photo', 'photos', 'boxMode', 'unitsPerBox', 'saleUnits', 'salePrice', 'boxSalePrice', 'costVersion'];
+    const source = { boxMode: false, weightMode: false, unitsPerBox: 1, saleUnits: 1, salePrice: item.price, boxSalePrice: null, photo: '', photos: [], ...item };
+    const fields = ['code', 'name', 'category', 'price', 'stock', 'photo', 'photos', 'boxMode', 'weightMode', 'weightUnit', 'weightUnitKg', 'unitsPerBox', 'saleUnits', 'salePrice', 'boxSalePrice', 'costVersion'];
     return Object.fromEntries(fields.filter(key => source[key] !== undefined).map(key => [key, source[key]]));
 }
 export function cashierSale(sale, products, user) {
@@ -10,10 +10,23 @@ export function cashierSale(sale, products, user) {
         const id = String(item.id);
         const product = products.get(id);
         if (!product) throw new Error('Producto no disponible.');
-        const line = lines[id] ||= { unitQty: 0, boxQty: 0, code: product.code, name: product.name, category: product.category,
+        const weighted = !!product.weightMode;
+        const line = lines[id] ||= { weightMode: weighted, weightQtyMilli: 0, weightUnit: product.weightUnit || '', unitQty: 0, boxQty: 0, code: product.code, name: product.name, category: product.category,
             price: Number(product.price), boxMode: !!product.boxMode, unitsPerBox: Number(product.unitsPerBox || 1),
-            saleUnits: Number(product.saleUnits || 1), salePrice: Number(product.salePrice ?? product.price),
+            saleUnits: Number(product.saleUnits || 1), salePrice: Number(product.salePrice ?? product.price), weightUnitKg: Number(product.weightUnitKg || 0),
             boxSalePrice: product.boxSalePrice ?? null, costVersion: product.costVersion };
+        if (weighted) {
+            const quantityMilli = Math.round(Number(item.qty) * 1000);
+            if (item.presentation !== 'weight' || !Number.isSafeInteger(quantityMilli) || quantityMilli <= 0
+                || Math.abs(Number(item.qty) - quantityMilli / 1000) > 1e-9
+                || item.weightUnit !== product.weightUnit || Number(item.weightUnitKg) !== Number(product.weightUnitKg)
+                || Number(item.price) !== Number(product.price)
+                || Math.round(Number(product.price) * quantityMilli / 1000 * 100) < 1) {
+                throw new Error('Revisa el peso o el precio de venta antes de cobrar.');
+            }
+            line.weightQtyMilli += quantityMilli;
+            continue;
+        }
         if (!Number.isSafeInteger(item.qty) || item.qty <= 0) throw new Error('Cantidad no valida.');
         if (item.presentation === 'box') {
             if (!product.boxMode || product.boxSalePrice == null || Number(item.boxSalePrice) !== Number(product.boxSalePrice)) throw new Error('El precio de caja cambio. Agrega el producto nuevamente.');
@@ -27,8 +40,18 @@ export function cashierSale(sale, products, user) {
     if (productIds.length > 8) throw new Error('La caja permite hasta 8 productos distintos por venta. Divide la compra en dos ventas.');
     for (const id of productIds) {
         const line = lines[id];
+        const product = products.get(id);
+        if (line.weightMode) {
+            line.unitsSold = line.weightQtyMilli * line.weightUnitKg / 1000;
+            line.stockBefore = Number(product.stock);
+            line.stockAfter = line.stockBefore - line.unitsSold;
+            if (!(line.unitsSold > 0) || line.stockAfter < -1e-9) throw new Error('Existencias insuficientes para ' + line.name);
+            lines[id] = { weightMode: true, weightQtyMilli: line.weightQtyMilli, weightUnit: line.weightUnit,
+                unitsSold: line.unitsSold, stockBefore: line.stockBefore, stockAfter: line.stockAfter, costVersion: line.costVersion };
+            continue;
+        }
         line.unitsSold = line.unitQty + line.boxQty * line.unitsPerBox;
-        line.stockBefore = Number(products.get(id).stock);
+        line.stockBefore = Number(product.stock);
         line.stockAfter = line.stockBefore - line.unitsSold;
         if (line.stockAfter < 0) throw new Error('Existencias insuficientes para ' + line.name);
         lines[id] = { unitQty: line.unitQty, boxQty: line.boxQty, unitsSold: line.unitsSold, stockBefore: line.stockBefore, stockAfter: line.stockAfter, costVersion: line.costVersion };
@@ -43,6 +66,18 @@ export function expandCashierSale(sale, costs, amount) {
         const stored = sale.lines[id];
         const cost = costs.get(stored.costVersion);
         const line = { ...(cost?.product || {}), ...stored };
+        if (line.weightMode) {
+            const qty = line.weightQtyMilli / 1000;
+            const item = { ...line, id, lineId: id + ':weight', presentation: 'weight', qty,
+                weightMode: true, weightUnit: line.weightUnit || cost?.product?.weightUnit,
+                weightUnitKg: Number(cost?.product?.weightUnitKg || 0), price: Number(cost?.product?.price || 0),
+                unitsSold: line.unitsSold, buyPrice: cost?.buyPrice };
+            if (cost?.known) item.costKnown = true;
+            else { item.costKnown = false; item.costSource = 'historical-pending'; }
+            item.lineTotal = amount(item);
+            items.push(item);
+            continue;
+        }
         for (const [presentation, qty] of [['unit', line.unitQty], ['box', line.boxQty]]) {
             if (!qty) continue;
             const item = { ...line, id, lineId: id + ':' + presentation, presentation, qty,

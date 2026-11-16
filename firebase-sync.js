@@ -1,11 +1,11 @@
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js';
 import { getAuth, setPersistence, browserLocalPersistence, onAuthStateChanged, sendSignInLinkToEmail, isSignInWithEmailLink, signInWithEmailLink, signOut } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js';
 import { getFirestore, collection, doc, getDocs, setDoc, deleteDoc, onSnapshot, runTransaction, serverTimestamp } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js';
-import { catalogProduct, cashierSale, expandCashierSale, historicalProduct } from './access.js?v=1';
+import { catalogProduct, cashierSale, expandCashierSale, historicalProduct } from './access.js?v=weight-1';
 window.ferroAccess = { catalogProduct };
-import { businessDay, parseSaleDate, saleTotals, itemTotals, salesReport, displaySaleDate, withInventoryCosts } from './sales-report.js?v=roles-1';
-import { lineAmount, productValues, stockUnits, maxCartQuantity } from './pricing.js?v=box-2';
-import { inventoryReport } from './inventory-report.js?v=margins-1';
+import { businessDay, parseSaleDate, saleTotals, itemTotals, salesReport, displaySaleDate, withInventoryCosts } from './sales-report.js?v=weight-1';
+import { lineAmount, productValues, stockUnits, maxCartQuantity } from './pricing.js?v=weight-1';
+import { inventoryReport } from './inventory-report.js?v=weight-1';
 import { readDeviceCache, saveDeviceCache, clearDeviceCache } from './device-cache.js?v=gallery-1';
 import { matchesProduct, compressProductPhoto, validProductPhoto } from './product-tools.js?v=gallery-1';
 import { productPhotos, mountCropper, disposeCropper, cropAction, exportCrop } from './photo-editor.js?v=gallery-1';
@@ -204,7 +204,9 @@ window.ferroFirebase = {
             photo, photos,
             code: String(item.code), name: String(item.name), category: String(item.category),
             buyPrice: Number(item.buyPrice || 0), price: Number(item.price || 0), stock: Number(item.stock || 0),
-            boxMode: !!item.boxMode, unitsPerBox: Number(item.unitsPerBox || 1), boxCost: Number(item.boxCost ?? item.buyPrice ?? 0),
+            boxMode: !!item.boxMode, weightMode: !!item.weightMode, weightUnit: item.weightMode ? String(item.weightUnit) : null,
+            weightUnitKg: item.weightMode ? Number(item.weightUnitKg) : null,
+            unitsPerBox: Number(item.unitsPerBox || 1), boxCost: Number(item.boxCost ?? item.buyPrice ?? 0),
             saleUnits: Number(item.saleUnits || 1), salePrice: Number(item.salePrice ?? item.price ?? 0),
             boxSalePrice: item.boxSalePrice == null ? null : Number(item.boxSalePrice)
             };
@@ -244,12 +246,20 @@ window.ferroFirebase = {
                 const qty = Number(item.qty);
                 const units = stockUnits(item);
                 const previousUnits = products.get(String(item.id))?.units || 0;
-                if (!product || !Number.isSafeInteger(qty) || qty <= 0 || !Number.isSafeInteger(units) || units <= 0 || product.stock < previousUnits + units) throw new Error('Existencias insuficientes para ' + item.name);
+                const validQty = product?.weightMode
+                    ? Number.isFinite(qty) && qty > 0 && Number.isSafeInteger(Math.round(qty * 1000)) && Math.abs(qty * 1000 - Math.round(qty * 1000)) < 1e-7
+                    : Number.isSafeInteger(qty) && qty > 0 && Number.isSafeInteger(units);
+                if (!product || !validQty || !Number.isFinite(units) || units <= 0 || product.stock + 1e-9 < previousUnits + units) throw new Error('Existencias insuficientes para ' + item.name);
+                if (product.weightMode && (item.presentation !== 'weight' || item.weightUnit !== product.weightUnit || Number(item.price) !== Number(product.price))) {
+                    throw new Error('La unidad o el precio por peso cambió. Vuelve a agregar el producto.');
+                }
+                if (product.weightMode && lineAmount(item) < 0.01) throw new Error('El subtotal del peso debe ser al menos $0.01.');
                 products.set(String(item.id), { productRef, id: item.id, units: previousUnits + units, stock: product.stock - previousUnits - units, product });
                 if (item.presentation === 'box' && (!product.boxMode || product.boxSalePrice == null || Number(product.unitsPerBox) !== Number(item.unitsPerBox) || Number(product.boxSalePrice) !== Number(item.boxSalePrice))) {
                     throw new Error('La presentacion o el precio de la caja cambio. Vuelve a agregar el producto al carrito.');
                 }
-                recordedItems.push({ ...item, unitsSold: units, lineTotal: lineAmount(item), code: product.code, name: product.name, category: product.category,
+                recordedItems.push({ ...item, ...(product.weightMode ? { weightQtyMilli: Math.round(qty * 1000) } : {}),
+                    unitsSold: units, lineTotal: lineAmount(item), code: product.code, name: product.name, category: product.category,
                     buyPrice: Number(product.buyPrice || 0), costKnown: product.buyPrice != null && Number.isFinite(Number(product.buyPrice)) && Number(product.buyPrice) >= 0,
                     stockBefore: Number(product.stock) - previousUnits, stockAfter: Number(product.stock) - previousUnits - units });
             }

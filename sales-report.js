@@ -50,11 +50,14 @@ export function withInventoryCosts(sale, inventory = []) {
 export function itemTotals(item) {
     const count = Number(item.qty || 0);
     const size = item.presentation === 'box' ? Number(item.unitsPerBox) : 1;
-    const quantity = count * size;
+    const quantity = item.weightMode
+        ? Number(item.unitsSold ?? (Number(item.weightQtyMilli ?? Math.round(count * 1000)) * Number(item.weightUnitKg || 0) / 1000))
+        : count * size;
     const revenue = Number.isFinite(item.lineTotal) ? item.lineTotal : Number(item.price || 0) * count;
     const known = item.costKnown !== false && item.buyPrice != null && Number.isFinite(Number(item.buyPrice)) && Number(item.buyPrice) >= 0;
     const cost = known ? Number(item.buyPrice) * quantity : null;
-    return { revenue, cost, profit: known ? revenue - cost : null, unitProfit: known ? Number(item.price || 0) - Number(item.buyPrice) * size : null,
+    const costPerSaleUnit = item.weightMode ? Number(item.buyPrice) * Number(item.weightUnitKg || 0) : Number(item.buyPrice) * size;
+    return { revenue, cost, profit: known ? revenue - cost : null, unitProfit: known ? Number(item.price || 0) - costPerSaleUnit : null,
         known, estimated: known && item.costSource === 'inventory-estimate' };
 }
 

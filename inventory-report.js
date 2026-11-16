@@ -1,4 +1,4 @@
-import { lineAmount } from './pricing.js?v=box-2';
+import { lineAmount } from './pricing.js?v=weight-1';
 
 function validNumber(value) {
     return value !== null && value !== undefined && value !== '' && Number.isFinite(Number(value)) && Number(value) >= 0;
@@ -8,13 +8,23 @@ function summarize(rows) {
     const investment = rows.every(row => row.investment != null) ? rows.reduce((sum, row) => sum + row.investment, 0) : null;
     const revenue = rows.every(row => row.revenue != null) ? rows.reduce((sum, row) => sum + Math.round(row.revenue * 100), 0) / 100 : null;
     const profit = investment != null && revenue != null ? revenue - investment : null;
-    return { count: rows.length, units: rows.reduce((sum, row) => sum + row.stock, 0), investment, revenue, profit,
+    return { count: rows.length, units: rows.filter(row => !row.weightMode).reduce((sum, row) => sum + row.stock, 0),
+        weightKg: rows.filter(row => row.weightMode).reduce((sum, row) => sum + row.stock, 0), investment, revenue, profit,
         margin: profit != null && revenue > 0 ? profit / revenue * 100 : null };
 }
 
 export function inventoryReport(inventory, scenario = 'units') {
     const rows = inventory.map(item => {
         const stock = Math.max(0, Number(item.stock) || 0);
+        if (item.weightMode) {
+            const unitKg = Number(item.weightUnitKg || 0);
+            const investment = validNumber(item.buyPrice) ? Number(item.buyPrice) * stock : null;
+            const revenue = unitKg > 0 && Number(item.price) > 0 && validNumber(item.price)
+                ? Math.round((stock / unitKg * Number(item.price) + Number.EPSILON) * 100) / 100 : null;
+            const profit = investment != null && revenue != null ? revenue - investment : null;
+            return { ...item, stock, boxes: 0, looseUnits: stock, investment, revenue, profit, missingBoxPrice: false,
+                margin: profit != null && revenue > 0 ? profit / revenue * 100 : null };
+        }
         const usesBoxes = scenario === 'boxes' && item.boxMode && validNumber(item.boxSalePrice)
             && Number.isSafeInteger(Number(item.unitsPerBox)) && Number(item.unitsPerBox) > 0;
         const boxes = usesBoxes ? Math.floor(stock / Number(item.unitsPerBox)) : 0;

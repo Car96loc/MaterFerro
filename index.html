@@ -29,7 +29,7 @@
         ::-webkit-scrollbar-track { background: #f1f5f9; }
         ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
     </style>
-    <script type="module" src="./firebase-sync.js?v=roles-1"></script>
+    <script type="module" src="./firebase-sync.js?v=weight-1"></script>
 </head>
 <body class="bg-slate-100 text-slate-800 h-full flex flex-col overflow-x-hidden" x-data="ferroApp()">
     <div x-cloak x-show="!authPending && !authReady" class="fixed inset-0 z-50 bg-slate-100 flex items-center justify-center p-4">
@@ -117,6 +117,10 @@
                     <span class="text-slate-400">Unidades Físicas:</span>
                     <span class="font-bold text-amber-400" x-text="totalUnits"></span>
                 </div>
+                <div x-show="totalWeightKg > 0" class="flex justify-between items-center text-xs">
+                    <span class="text-slate-400">Peso en stock:</span>
+                    <span class="font-bold text-amber-400" x-text="formatWeight(totalWeightKg) + ' kg'"></span>
+                </div>
                 <div class="flex justify-between items-center text-xs">
                     <span class="text-slate-400">Inversión:</span>
                     <span class="font-bold text-slate-200" x-text="formatEstimateMoney(totalInvestment)"></span>
@@ -197,7 +201,7 @@
                                     </div>
                                     <div class="flex items-center justify-between gap-1 min-w-0 text-[10px]">
                                         <span class="bg-slate-100 text-slate-600 px-1 py-0.5 rounded truncate min-w-0" :title="item.category" x-text="item.category"></span>
-                                        <span class="text-slate-600 shrink-0" x-text="'Stock: ' + item.stock"></span>
+                                        <span class="text-slate-600 shrink-0" x-text="'Stock: ' + stockLabel(item)"></span>
                                     </div>
                                     <span class="text-[10px] text-slate-500 break-words" x-text="'Código: ' + item.code"></span>
                                     <label x-show="item.boxMode" @click.stop class="flex items-start gap-1 text-[10px] text-slate-700 cursor-pointer">
@@ -246,20 +250,22 @@
                                     </div>
                                     <div class="text-xs text-slate-500" x-text="productPriceLabel(cartItem)"></div>
                                     <div class="text-xs text-slate-500" x-show="cartItem.presentation === 'box'" x-text="cartItem.qty + ' caja(s) = ' + stockUnits(cartItem) + ' unidades'"></div>
+                                    <div class="text-xs text-slate-500" x-show="cartItem.weightMode" x-text="formatWeightQty(cartItem.qty) + ' ' + cartItem.weightUnit + ' = ' + formatWeight(stockUnits(cartItem)) + ' kg'"></div>
                                     <div class="text-xs font-bold text-emerald-600 mt-0.5" x-text="'Subtotal: ' + formatMoney(lineAmount(cartItem))"></div>
                                 </div>
                                 <div class="col-span-2 flex items-center justify-end space-x-2">
                                     <div class="flex items-center border border-slate-300 rounded-lg bg-white overflow-hidden shadow-sm">
-                                        <button @click="updateCartQty(index, -1)" class="px-2 py-1.5 text-slate-600 hover:bg-slate-100 transition"><i class="fa-solid fa-minus text-[10px]"></i></button>
+                                        <button @click="updateCartQty(index, cartItem.weightMode ? -0.01 : -1)" class="px-2 py-1.5 text-slate-600 hover:bg-slate-100 transition"><i class="fa-solid fa-minus text-[10px]"></i></button>
                                         <input type="number" 
-                                               min="1" 
+                                               :min="cartItem.weightMode ? 0.001 : 1"
+                                               :step="cartItem.weightMode ? 0.001 : 1"
                                                :max="cartMaxQty(cartItem)"
                                                x-model.number="cartItem.qty" 
                                                @focus="$event.target.select()"
                                                @input="validateManualQty(index)" 
                                                @blur="finalizeManualQty(index)"
-                                               class="w-10 text-center text-xs font-bold text-slate-800 focus:outline-none focus:bg-amber-50 py-1 bg-transparent border-x border-slate-200">
-                                        <button @click="updateCartQty(index, 1)" class="px-2 py-1.5 text-slate-600 hover:bg-slate-100 transition"><i class="fa-solid fa-plus text-[10px]"></i></button>
+                                               :class="cartItem.weightMode ? 'w-16' : 'w-10'" class="text-center text-xs font-bold text-slate-800 focus:outline-none focus:bg-amber-50 py-1 bg-transparent border-x border-slate-200">
+                                        <button @click="updateCartQty(index, cartItem.weightMode ? 0.01 : 1)" class="px-2 py-1.5 text-slate-600 hover:bg-slate-100 transition"><i class="fa-solid fa-plus text-[10px]"></i></button>
                                     </div>
                                     <button @click="removeFromCart(index)" type="button" title="Eliminar ítem" class="w-8 h-8 rounded-lg bg-red-50 text-red-600 hover:bg-red-600 hover:text-white flex items-center justify-center transition shadow-sm cursor-pointer">
                                         <i class="fa-solid fa-trash text-xs pointer-events-none"></i>
@@ -331,12 +337,12 @@
                                     <td class="p-3">
                                         <span class="text-xs bg-slate-100 text-slate-700 px-2.5 py-1 rounded-full font-medium" x-text="item.category"></span>
                                     </td>
-                                    <td class="p-3 text-center font-bold text-slate-700" x-text="item.stock"></td>
-                                    <td class="p-3 text-right text-slate-600" x-text="item.buyPrice > 0 ? formatMoney(item.buyPrice) : 'Pendiente'"></td>
+                                    <td class="p-3 text-center font-bold text-slate-700" x-text="stockLabel(item)"></td>
+                                    <td class="p-3 text-right text-slate-600" x-text="item.buyPrice > 0 ? formatUnitMoney(item.buyPrice) + (item.weightMode ? ' / kg' : '') : 'Pendiente'"></td>
                                     <td class="p-3 text-right font-bold text-slate-700" x-text="item.buyPrice > 0 ? formatMoney(item.buyPrice * item.stock) : '—'"></td>
                                     <td class="p-3 text-right font-semibold text-slate-900" x-text="item.price > 0 ? productPriceLabel(item) : 'Pendiente'"></td>
-                                    <td class="p-3 text-right font-bold text-slate-900" x-text="item.price > 0 ? formatMoney(item.price * item.stock) : '—'"></td>
-                                    <td class="p-3 text-right font-bold text-emerald-600" x-text="item.buyPrice > 0 && item.price > 0 ? formatMoney((item.price - item.buyPrice) * item.stock) : '—'"></td>
+                                    <td class="p-3 text-right font-bold text-slate-900" x-text="item.price > 0 ? formatMoney(productRevenue(item)) : '—'"></td>
+                                    <td class="p-3 text-right font-bold text-emerald-600" x-text="item.buyPrice > 0 && item.price > 0 ? formatMoney(productRevenue(item) - item.buyPrice * item.stock) : '—'"></td>
                                     <td class="p-3 text-center space-x-1">
                                         <button @click="editProduct(item)" title="Editar" class="w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 transition inline-flex items-center justify-center">
                                             <i class="fa-solid fa-pen text-xs"></i>
@@ -410,7 +416,7 @@
                                     <td class="p-3 font-mono text-xs max-w-40 break-all" x-text="sale.id"></td>
                                     <td class="p-3 text-xs" x-text="displaySaleDate(sale.date)"></td>
                                     <td class="p-3 text-xs uppercase" x-text="sale.paymentMethod"></td>
-                                    <td class="p-3 text-right"><span x-text="sale.itemsCount"></span><span class="block text-[10px] text-slate-500" x-text="sale.cashierName || sale.cashierEmail || ''"></span></td>
+                                    <td class="p-3 text-right"><span x-text="saleQuantitySummary(sale)"></span><span class="block text-[10px] text-slate-500" x-text="sale.cashierName || sale.cashierEmail || ''"></span></td>
                                     <td class="p-3 text-right font-semibold" x-text="formatMoney(sale.total)"></td>
                                     <td class="p-3 text-right" x-text="formatReportMoney(saleTotals(sale).cost)"></td>
                                     <td class="p-3 text-right font-semibold"><span x-text="formatReportMoney(saleTotals(sale).profit)"></span><span x-show="saleTotals(sale).estimated" class="block text-xs text-amber-800 font-normal">Estimado</span></td>
@@ -447,9 +453,9 @@
                     <h4 class="text-sm font-semibold">Estimación por categoría</h4>
                     <div class="overflow-x-auto">
                         <table class="w-full min-w-[680px] text-sm text-left">
-                            <thead class="bg-slate-50"><tr><th class="p-3">Categoría</th><th class="p-3 text-right">Unidades</th><th class="p-3 text-right">Inversión</th><th class="p-3 text-right">Venta estimada</th><th class="p-3 text-right">Ganancia estimada</th><th class="p-3 text-right">Margen</th></tr></thead>
+                            <thead class="bg-slate-50"><tr><th class="p-3">Categoría</th><th class="p-3 text-right">Stock unidades / kg</th><th class="p-3 text-right">Inversión</th><th class="p-3 text-right">Venta estimada</th><th class="p-3 text-right">Ganancia estimada</th><th class="p-3 text-right">Margen</th></tr></thead>
                             <tbody><template x-for="category in inventoryReport.categories" :key="category.name"><tr class="border-b border-slate-100">
-                                <td class="p-3" x-text="category.name"></td><td class="p-3 text-right" x-text="category.units"></td>
+                                <td class="p-3" x-text="category.name"></td><td class="p-3 text-right" x-text="category.units + ' unid. / ' + formatWeight(category.weightKg) + ' kg'"></td>
                                 <td class="p-3 text-right" x-text="formatEstimateMoney(category.investment)"></td><td class="p-3 text-right" x-text="formatEstimateMoney(category.revenue)"></td>
                                 <td class="p-3 text-right font-semibold" :class="category.profit < 0 ? 'text-rose-700' : ''" x-text="formatEstimateMoney(category.profit)"></td><td class="p-3 text-right" x-text="formatMargin(category.margin)"></td>
                             </tr></template></tbody>
@@ -461,7 +467,7 @@
                             <thead class="bg-slate-50"><tr><th class="p-3">Producto</th><th class="p-3">Presentación estimada</th><th class="p-3 text-right">Inversión</th><th class="p-3 text-right">Venta estimada</th><th class="p-3 text-right">Ganancia estimada</th><th class="p-3 text-right">Margen</th></tr></thead>
                             <tbody><template x-for="row in inventoryReport.top" :key="row.id"><tr class="border-b border-slate-100">
                                 <td class="p-3" x-text="'[' + row.code + '] ' + row.name"></td>
-                                <td class="p-3 text-xs" x-text="row.boxes ? row.boxes + ' caja(s) + ' + row.looseUnits + ' unidades' : row.stock + ' unidades'"></td>
+                                <td class="p-3 text-xs" x-text="row.weightMode ? formatWeight(row.stock) + ' kg' : (row.boxes ? row.boxes + ' caja(s) + ' + row.looseUnits + ' unidades' : row.stock + ' unidades')"></td>
                                 <td class="p-3 text-right" x-text="formatEstimateMoney(row.investment)"></td><td class="p-3 text-right" x-text="formatEstimateMoney(row.revenue)"></td>
                                 <td class="p-3 text-right font-semibold" :class="row.profit < 0 ? 'text-rose-700' : ''" x-text="formatEstimateMoney(row.profit)"></td><td class="p-3 text-right" x-text="formatMargin(row.margin)"></td>
                             </tr></template></tbody>
@@ -543,9 +549,30 @@
                     <input type="text" x-model="productForm.name" required placeholder="Ej. Taladro Percutor 600W" class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-500">
                 </div>
                 <label class="flex items-center gap-2 text-sm font-semibold text-slate-700">
-                    <input type="checkbox" x-model="productForm.boxMode" class="w-4 h-4 accent-emerald-700">
+                    <input type="checkbox" x-model="productForm.boxMode" @change="if (productForm.boxMode) productForm.weightMode = false" class="w-4 h-4 accent-emerald-700">
                     Compra por caja / venta por unidades
                 </label>
+                <label class="flex items-center gap-2 text-sm font-semibold text-slate-700">
+                    <input type="checkbox" x-model="productForm.weightMode" @change="if (productForm.weightMode) productForm.boxMode = false" class="w-4 h-4 accent-emerald-700">
+                    Venta por peso (stock en kg)
+                </label>
+                <div x-show="productForm.weightMode" class="grid grid-cols-1 sm:grid-cols-2 gap-4 rounded-xl border border-amber-200 bg-amber-50 p-3">
+                    <label class="text-xs font-semibold text-slate-700">Existencias en kg
+                        <input type="number" min="0" step="0.001" x-model.number="productForm.stock" :required="productForm.weightMode" :disabled="!productForm.weightMode" class="block mt-1 w-full border border-slate-300 rounded px-3 py-2 text-sm">
+                    </label>
+                    <label class="text-xs font-semibold text-slate-700">Costo de compra por kg ($)
+                        <input type="number" min="0" step="0.0001" x-model.number="productForm.buyPrice" :required="productForm.weightMode" :disabled="!productForm.weightMode" class="block mt-1 w-full border border-slate-300 rounded px-3 py-2 text-sm">
+                    </label>
+                    <label class="text-xs font-semibold text-slate-700">Unidad de venta
+                        <select x-model="productForm.weightUnit" :required="productForm.weightMode" :disabled="!productForm.weightMode" class="block mt-1 w-full border border-slate-300 rounded px-3 py-2 text-sm">
+                            <option value="lb">Libra (lb)</option><option value="kg">Kilogramo (kg)</option><option value="g">Gramo (g)</option>
+                        </select>
+                    </label>
+                    <label class="text-xs font-semibold text-slate-700">Precio por <span x-text="productForm.weightUnit"></span> ($)
+                        <input type="number" min="0" step="0.01" x-model.number="productForm.price" :required="productForm.weightMode" :disabled="!productForm.weightMode" class="block mt-1 w-full border border-slate-300 rounded px-3 py-2 text-sm">
+                    </label>
+                    <p class="sm:col-span-2 text-xs text-slate-600">El stock se guarda en kg. La caja descuenta automáticamente el peso equivalente a lo vendido.</p>
+                </div>
                 <div x-show="productForm.boxMode" class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <label class="text-xs font-semibold text-slate-700">Unidades por caja
                         <input type="number" min="1" step="1" x-model.number="productForm.unitsPerBox" :required="productForm.boxMode" :disabled="!productForm.boxMode" class="block mt-1 w-full border border-slate-300 rounded px-3 py-2 text-sm">
@@ -574,18 +601,18 @@
                         <div><dt>Unidades en stock</dt><dd class="font-bold" x-text="boxPreview?.stock ?? '-'"></dd></div>
                     </dl>
                 </div>
-                <div x-show="!productForm.boxMode" class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div x-show="!productForm.boxMode && !productForm.weightMode" class="grid grid-cols-1 sm:grid-cols-3 gap-4">
                     <div>
                         <label class="block text-xs font-semibold text-slate-700 uppercase mb-1">Compra Unit. ($)</label>
-                        <input type="number" step="0.0001" min="0" x-model.number="productForm.buyPrice" :required="!productForm.boxMode" :disabled="productForm.boxMode" class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-500">
+                        <input type="number" step="0.0001" min="0" x-model.number="productForm.buyPrice" :required="!productForm.boxMode && !productForm.weightMode" :disabled="productForm.boxMode || productForm.weightMode" class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-500">
                     </div>
                     <div>
                         <label class="block text-xs font-semibold text-slate-700 uppercase mb-1">Venta Unit. ($)</label>
-                        <input type="number" step="0.0001" min="0" x-model.number="productForm.price" :required="!productForm.boxMode" :disabled="productForm.boxMode" class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-500">
+                        <input type="number" step="0.0001" min="0" x-model.number="productForm.price" :required="!productForm.boxMode && !productForm.weightMode" :disabled="productForm.boxMode || productForm.weightMode" class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-500">
                     </div>
                     <div>
                         <label class="block text-xs font-semibold text-slate-700 uppercase mb-1">Cantidad / Stock</label>
-                        <input type="number" min="0" step="1" x-model.number="productForm.stock" :required="!productForm.boxMode" :disabled="productForm.boxMode" class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-500">
+                        <input type="number" min="0" step="1" x-model.number="productForm.stock" :required="!productForm.boxMode && !productForm.weightMode" :disabled="productForm.boxMode || productForm.weightMode" class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-500">
                     </div>
                 </div>
                 <div class="flex justify-end space-x-3 pt-4 border-t border-slate-200">
@@ -684,13 +711,13 @@
                                 <tr>
                                     <td class="p-2 font-medium"><span x-text="item.name"></span><span class="block text-slate-500" x-text="item.code"></span></td>
                                     <td class="p-2" x-text="item.category || 'No registrada'"></td>
-                                    <td class="p-2 text-right" x-text="item.presentation === 'box' ? item.qty + ' caja(s) / ' + stockUnits(item) + ' unid.' : item.qty"></td>
-                                    <td class="p-2 text-right" x-text="itemTotals(item).known ? formatUnitMoney(item.buyPrice * (item.presentation === 'box' ? item.unitsPerBox : 1)) : 'No registrado'"></td>
-                                    <td class="p-2 text-right" x-text="formatUnitMoney(item.price)"></td>
+                                    <td class="p-2 text-right" x-text="saleQuantityLabel(item)"></td>
+                                    <td class="p-2 text-right" x-text="itemTotals(item).known ? formatUnitMoney(item.buyPrice * (item.weightMode ? item.weightUnitKg : (item.presentation === 'box' ? item.unitsPerBox : 1))) + (item.weightMode ? ' / ' + item.weightUnit : '') : 'No registrado'"></td>
+                                    <td class="p-2 text-right" x-text="formatUnitMoney(item.price) + (item.weightMode ? ' / ' + item.weightUnit : '')"></td>
                                     <td class="p-2 text-right" x-text="formatReportMoney(itemTotals(item).cost)"></td>
                                     <td class="p-2 text-right" x-text="formatMoney(itemTotals(item).revenue)"></td>
-                                    <td class="p-2 text-right font-semibold"><span x-text="formatReportMoney(itemTotals(item).profit)"></span><span class="block text-slate-500 font-normal" x-text="itemTotals(item).known ? formatUnitMoney(itemTotals(item).unitProfit) + (item.presentation === 'box' ? ' / caja' : ' / unidad') : ''"></span><span x-show="itemTotals(item).estimated" class="block text-amber-800 font-normal">Estimado</span></td>
-                                    <td class="p-2 text-right" x-text="item.stockBefore == null ? 'No registrado' : item.stockBefore + ' / ' + item.stockAfter"></td>
+                                    <td class="p-2 text-right font-semibold"><span x-text="formatReportMoney(itemTotals(item).profit)"></span><span class="block text-slate-500 font-normal" x-text="itemTotals(item).known ? formatUnitMoney(itemTotals(item).unitProfit) + (item.weightMode ? ' / ' + item.weightUnit : (item.presentation === 'box' ? ' / caja' : ' / unidad')) : ''"></span><span x-show="itemTotals(item).estimated" class="block text-amber-800 font-normal">Estimado</span></td>
+                                    <td class="p-2 text-right" x-text="item.stockBefore == null ? 'No registrado' : (item.weightMode ? formatWeight(item.stockBefore) + ' / ' + formatWeight(item.stockAfter) + ' kg' : item.stockBefore + ' / ' + item.stockAfter)"></td>
                                     <td class="p-2 text-center"><button @click="promptReturnProduct(item, idx)" title="Devolver este producto" aria-label="Devolver este producto" class="w-8 h-8 text-amber-800 hover:bg-amber-100 rounded"><i class="fa-solid fa-rotate-left"></i></button></td>
                                 </tr>
                             </template>
@@ -819,7 +846,7 @@
                 ],
 
                 productForm: {
-                    boxMode: false, unitsPerBox: 100, boxCost: 0, boxCount: 1, saleUnits: 2, salePrice: 0.05, boxSalePrice: '',
+                    boxMode: false, weightMode: false, weightUnit: 'kg', unitsPerBox: 100, boxCost: 0, boxCount: 1, saleUnits: 2, salePrice: 0.05, boxSalePrice: '',
                     id: null,
                     code: '',
                     name: '',
@@ -853,7 +880,7 @@
                         } else {
                             this.inventory = []; this.sales = []; this.cart = [];
                             this.closeProductModal();
-                            this.productForm = { name: '', code: '', category: '', buyPrice: 0, price: 0, stock: 0, photos: [], photo: '' };
+                            this.productForm = { name: '', code: '', category: '', buyPrice: 0, price: 0, stock: 0, weightMode: false, weightUnit: 'kg', photos: [], photo: '' };
                             this.isSaleDetailOpen = false; this.selectedSale = null;
                             this.isReturnAuthOpen = false; this.isDeleteModalOpen = false; this.isCheckoutOpen = false;
                             this.photoPreview = null; this.returnAuthPassword = '';
@@ -919,6 +946,32 @@
                     return '$' + Number(amount || 0).toFixed(2);
                 },
 
+                formatWeight(value) {
+                    return Number(value || 0).toLocaleString('es-CO', { minimumFractionDigits: 0, maximumFractionDigits: 3 });
+                },
+                formatWeightQty(value) {
+                    return Number(value || 0).toLocaleString('es-CO', { minimumFractionDigits: 0, maximumFractionDigits: 3 });
+                },
+                stockLabel(item) { return item.weightMode ? this.formatWeight(item.stock) + ' kg' : String(item.stock); },
+                productRevenue(item) {
+                    return item.weightMode ? Number(item.price || 0) * Number(item.stock || 0) / Number(item.weightUnitKg || 1)
+                        : Number(item.price || 0) * Number(item.stock || 0);
+                },
+                productPotentialProfit(item) { return this.productRevenue(item) - Number(item.buyPrice || 0) * Number(item.stock || 0); },
+                saleQuantityLabel(item) {
+                    if (item.weightMode) return this.formatWeightQty(item.qty) + ' ' + item.weightUnit;
+                    return item.presentation === 'box' ? item.qty + ' caja(s) / ' + this.stockUnits(item) + ' unid.' : String(item.qty);
+                },
+                saleQuantitySummary(sale) {
+                    const items = sale.items || [];
+                    const units = items.filter(item => !item.weightMode).reduce((sum, item) => sum + this.stockUnits(item), 0);
+                    const kg = items.filter(item => item.weightMode).reduce((sum, item) => sum + this.stockUnits(item), 0);
+                    const parts = [];
+                    if (units) parts.push(units + ' unid.');
+                    if (kg) parts.push(this.formatWeight(kg) + ' kg');
+                    return parts.join(' / ') || String(sale.itemsCount || 0);
+                },
+
                 formatReportMoney(amount) {
                     return amount == null ? 'Sin costo registrado' : this.formatMoney(amount);
                 },
@@ -930,6 +983,7 @@
                 lineAmount(item) { return window.ferroPricing.lineAmount(item); },
                 productPriceLabel(item) {
                     if (item.presentation === 'box') return this.formatMoney(item.boxSalePrice) + ' / caja';
+                    if (item.weightMode) return this.formatMoney(item.price) + ' / ' + item.weightUnit;
                     return item.boxMode ? this.formatMoney(item.salePrice) + ' / ' + item.saleUnits + ' unid.' : this.formatUnitMoney(item.price);
                 },
                 productPresentationPrice(item, presentation) {
@@ -956,9 +1010,9 @@
                         const totals = this.itemTotals(item);
                         return { Venta: sale.id, Fecha: this.displaySaleDate(sale.date), Pago: sale.paymentMethod,
                             Codigo: item.code, Producto: item.name, Categoria: item.category || '', Cantidad: item.qty,
-                            Presentacion: item.presentation === 'box' ? 'Caja de ' + item.unitsPerBox : 'Unidades',
-                            'Unidades fisicas': this.stockUnits(item),
-                            'Costo por presentacion': totals.known ? Number(item.buyPrice) * (item.presentation === 'box' ? item.unitsPerBox : 1) : '', 'Precio por presentacion': Number(item.price),
+                            Presentacion: item.weightMode ? 'Peso (' + item.weightUnit + ')' : (item.presentation === 'box' ? 'Caja de ' + item.unitsPerBox : 'Unidades'),
+                            'Unidades fisicas / kg': this.stockUnits(item),
+                            'Costo por presentacion': totals.known ? Number(item.buyPrice) * (item.weightMode ? item.weightUnitKg : (item.presentation === 'box' ? item.unitsPerBox : 1)) : '', 'Precio por presentacion': Number(item.price),
                             'Total vendido': totals.revenue, 'Inversión recuperada': totals.cost ?? '', 'Ganancia': totals.profit ?? '',
                             'Ganancia por presentacion': totals.unitProfit ?? '', 'Costo estimado': totals.estimated ? 'Si' : 'No' };
                     }));
@@ -974,8 +1028,9 @@
                 },
 
                 get totalUnits() {
-                    return this.inventory.reduce((sum, i) => sum + i.stock, 0);
+                    return this.inventory.filter(i => !i.weightMode).reduce((sum, i) => sum + Number(i.stock || 0), 0);
                 },
+                get totalWeightKg() { return this.inventory.filter(i => i.weightMode).reduce((sum, i) => sum + Number(i.stock || 0), 0); },
 
                 get inventoryReport() { return window.ferroInventoryReport(this.inventory, this.inventoryScenario); },
                 get totalInvestment() { return this.inventoryReport.investment; },
@@ -1071,6 +1126,7 @@
                 },
 
                 addToCart(product, presentation = 'unit') {
+                    if (product.weightMode) presentation = 'weight';
                     if (this.authReady && !this.isAdmin && !this.productInCart(product.id) && new Set(this.cart.map(item => String(item.id))).size >= 8) {
                         this.showNotification('Hasta 8 productos distintos por venta de cajero.'); return;
                     }
@@ -1089,19 +1145,22 @@
                         boxSalePrice: product.boxSalePrice ?? null, code: product.code, name: product.name,
                         price: presentation === 'box' ? Number(product.boxSalePrice) : Number(product.price),
                         boxMode: !!product.boxMode, saleUnits: Number(product.saleUnits || 1),
-                        salePrice: Number(product.salePrice ?? product.price), qty: 0
+                        salePrice: Number(product.salePrice ?? product.price), weightMode: !!product.weightMode,
+                        weightUnit: product.weightUnit || '', weightUnitKg: Number(product.weightUnitKg || 0), qty: 0
                     };
-                    if (item.qty + 1 > this.cartMaxQty(item)) {
+                    const increment = 1;
+                    if (item.qty + increment > this.cartMaxQty(item)) {
                         this.showNotification('Stock insuficiente para esta presentacion.');
                         return;
                     }
-                    item.qty++;
+                    item.qty += increment;
                     if (!existing) this.cart.push(item);
                 },
 
                 updateCartQty(index, change) {
                     const item = this.cart[index];
-                    const next = Number(item.qty || 0) + change;
+                    const rawNext = Number(item.qty || 0) + change;
+                    const next = item.weightMode ? Math.round(rawNext * 1000) / 1000 : rawNext;
                     if (next <= 0) this.removeFromCart(index);
                     else if (next <= this.cartMaxQty(item)) item.qty = next;
                     else this.showNotification('Stock insuficiente para esta presentacion.');
@@ -1119,6 +1178,12 @@
                 finalizeManualQty(index) {
                     const item = this.cart[index];
                     const maximum = this.cartMaxQty(item);
+                    if (item.weightMode) {
+                        const quantity = Math.floor((Math.min(maximum, Number(item.qty) || 0) + 1e-9) * 1000) / 1000;
+                        if (quantity < 0.001) { this.removeFromCart(index); return; }
+                        item.qty = quantity;
+                        return;
+                    }
                     if (maximum < 1) { this.removeFromCart(index); return; }
                     item.qty = Math.max(1, Math.min(maximum, Math.floor(Number(item.qty) || 1)));
                 },
@@ -1150,7 +1215,7 @@
                         photo: '',
                         photos: [],
                         code: (maxCodeNum + 1).toString(),
-                        boxMode: false, unitsPerBox: 100, boxCost: 0, boxCount: 1, saleUnits: 2, salePrice: 0.05, boxSalePrice: '',
+                        boxMode: false, weightMode: false, weightUnit: 'kg', unitsPerBox: 100, boxCost: 0, boxCount: 1, saleUnits: 2, salePrice: 0.05, boxSalePrice: '',
                         name: '',
                         category: '',
                         buyPrice: 0,
@@ -1163,7 +1228,7 @@
                 editProduct(item) {
                     this.cancelPhotoCrop();
                     this.isEditing = true;
-                    this.productForm = { boxMode: false, unitsPerBox: 100, boxCost: 0, boxCount: 1, saleUnits: 2, salePrice: 0.05, boxSalePrice: '', ...item, photos: this.photosFor(item).slice() };
+                    this.productForm = { boxMode: false, weightMode: false, weightUnit: 'kg', unitsPerBox: 100, boxCost: 0, boxCount: 1, saleUnits: 2, salePrice: 0.05, boxSalePrice: '', ...item, photos: this.photosFor(item).slice() };
                     this.isProductModalOpen = true;
                 },
 
@@ -1324,12 +1389,13 @@
                         "Código": item.code,
                         "Producto": item.name,
                         "Categoría": item.category,
-                        "Cantidad": item.stock,
+                        "Cantidad": this.stockLabel(item),
                         "Compra Unit.": item.buyPrice > 0 ? item.buyPrice : 0,
                         "Inversión": item.buyPrice > 0 ? item.buyPrice * item.stock : 0,
                         "Venta Unit.": item.price > 0 ? item.price : 0,
-                        "Venta Total": item.price > 0 ? item.price * item.stock : 0,
-                        "Ganancia": item.buyPrice > 0 && item.price > 0 ? (item.price - item.buyPrice) * item.stock : 0
+                        "Venta Total": item.price > 0 ? this.productRevenue(item) : 0,
+                        "Ganancia": item.buyPrice > 0 && item.price > 0 ? this.productPotentialProfit(item) : 0,
+                        "Unidad de compra/venta": item.weightMode ? 'Compra/kg; venta/' + item.weightUnit : 'Unidad'
                     }));
 
                     const ws = XLSX.utils.json_to_sheet(data);
@@ -1370,18 +1436,18 @@
                         item.code,
                         item.name,
                         item.category,
-                        item.stock,
-                        item.buyPrice > 0 ? '$' + item.buyPrice.toFixed(2) : 'Pend.',
+                        this.stockLabel(item),
+                        item.buyPrice > 0 ? '$' + item.buyPrice.toFixed(2) + (item.weightMode ? ' / kg' : '') : 'Pend.',
                         item.buyPrice > 0 ? '$' + (item.buyPrice * item.stock).toFixed(2) : '—',
-                        item.price > 0 ? '$' + item.price.toFixed(2) : 'Pend.',
-                        item.price > 0 ? '$' + (item.price * item.stock).toFixed(2) : '—',
-                        item.buyPrice > 0 && item.price > 0 ? '$' + ((item.price - item.buyPrice) * item.stock).toFixed(2) : '—'
+                        item.price > 0 ? '$' + item.price.toFixed(2) + (item.weightMode ? ' / ' + item.weightUnit : '') : 'Pend.',
+                        item.price > 0 ? '$' + this.productRevenue(item).toFixed(2) : '—',
+                        item.buyPrice > 0 && item.price > 0 ? '$' + this.productPotentialProfit(item).toFixed(2) : '—'
                     ]);
 
                     const totalInvSum = this.inventory.reduce((sum, item) => sum + (item.buyPrice > 0 ? item.buyPrice * item.stock : 0), 0);
-                    const totalSalesSum = this.inventory.reduce((sum, item) => sum + (item.price > 0 ? item.price * item.stock : 0), 0);
-                    const totalProfitSum = this.inventory.reduce((sum, item) => sum + (item.buyPrice > 0 && item.price > 0 ? (item.price - item.buyPrice) * item.stock : 0), 0);
-                    const totalUnitsSum = this.inventory.reduce((sum, item) => sum + item.stock, 0);
+                    const totalSalesSum = this.inventory.reduce((sum, item) => sum + (item.price > 0 ? this.productRevenue(item) : 0), 0);
+                    const totalProfitSum = this.inventory.reduce((sum, item) => sum + (item.buyPrice > 0 && item.price > 0 ? this.productPotentialProfit(item) : 0), 0);
+                    const totalUnitsSum = this.totalUnits;
 
                     const tableFooter = [[
                         { content: 'TOTALES', colSpan: 4, styles: { halign: 'right', fontStyle: 'bold' } },
