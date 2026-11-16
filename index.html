@@ -29,7 +29,7 @@
         ::-webkit-scrollbar-track { background: #f1f5f9; }
         ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
     </style>
-    <script type="module" src="./firebase-sync.js?v=weight-6"></script>
+    <script type="module" src="./firebase-sync.js?v=weight-8"></script>
 </head>
 <body class="bg-slate-100 text-slate-800 h-full flex flex-col overflow-x-hidden" x-data="ferroApp()">
     <div x-cloak x-show="!authPending && !authReady" class="fixed inset-0 z-50 bg-slate-100 flex items-center justify-center p-4">
@@ -250,6 +250,7 @@
                                     </div>
                                     <div class="text-xs text-slate-500" x-text="productPriceLabel(cartItem)"></div>
                                     <div class="text-xs text-slate-500" x-show="cartItem.presentation === 'box'" x-text="cartItem.qty + ' caja(s) = ' + stockUnits(cartItem) + ' unidades'"></div>
+                                    <div class="text-xs text-slate-500" x-show="cartItem.saleGroupMode" x-text="(cartItem.qty / cartItem.saleUnits) + ' paquete(s) = ' + cartItem.qty + ' unidades'"></div>
                                     <div class="text-xs text-slate-500" x-show="cartItem.weightMode" x-text="formatWeightQty(cartItem.qty) + ' ' + cartItem.weightUnit + ' = ' + formatWeight(stockUnits(cartItem)) + ' kg'"></div>
                                     <div class="text-xs font-bold text-emerald-600 mt-0.5" x-text="'Subtotal: ' + formatMoney(lineAmount(cartItem))"></div>
                                     <button x-show="cartItem.weightMode" type="button" @click="toggleCartAmountMode(cartItem)" class="mt-1 text-[11px] text-blue-700 underline" x-text="cartItem.amountMode ? 'Ingresar por peso' : 'Ingresar por monto ($)'"></button>
@@ -259,17 +260,17 @@
                                         <input type="number" min="0.01" step="0.01" :max="Math.floor(cartMaxQty(cartItem) * cartItem.price * 100) / 100" x-model.number="cartItem.saleAmount" @input="updateCartFromAmount(index)" @blur="finalizeCartAmount(index)" class="w-24 border border-slate-300 rounded-lg px-2 py-1.5 text-center font-bold text-slate-800">
                                     </label>
                                     <div x-show="!cartItem.weightMode || !cartItem.amountMode" class="flex items-center border border-slate-300 rounded-lg bg-white overflow-hidden shadow-sm">
-                                        <button @click="updateCartQty(index, cartItem.weightMode ? -0.01 : -1)" class="px-2 py-1.5 text-slate-600 hover:bg-slate-100 transition"><i class="fa-solid fa-minus text-[10px]"></i></button>
+                                        <button @click="updateCartQty(index, cartItem.weightMode ? -0.01 : -(cartItem.boxMode ? Number(cartItem.saleUnits || 1) : 1))" class="px-2 py-1.5 text-slate-600 hover:bg-slate-100 transition"><i class="fa-solid fa-minus text-[10px]"></i></button>
                                         <input type="number" 
-                                               :min="cartItem.weightMode ? 0.001 : 1"
-                                               :step="cartItem.weightMode ? 0.001 : 1"
+                                               :min="cartItem.weightMode ? 0.001 : (cartItem.boxMode ? Number(cartItem.saleUnits || 1) : 1)"
+                                               :step="cartItem.weightMode ? 0.001 : (cartItem.boxMode ? Number(cartItem.saleUnits || 1) : 1)"
                                                :max="cartMaxQty(cartItem)"
                                                x-model.number="cartItem.qty" 
                                                @focus="$event.target.select()"
                                                @input="validateManualQty(index)" 
                                                @blur="finalizeManualQty(index)"
                                                :class="cartItem.weightMode ? 'w-16' : 'w-10'" class="text-center text-xs font-bold text-slate-800 focus:outline-none focus:bg-amber-50 py-1 bg-transparent border-x border-slate-200">
-                                        <button @click="updateCartQty(index, cartItem.weightMode ? 0.01 : 1)" class="px-2 py-1.5 text-slate-600 hover:bg-slate-100 transition"><i class="fa-solid fa-plus text-[10px]"></i></button>
+                                        <button @click="updateCartQty(index, cartItem.weightMode ? 0.01 : (cartItem.boxMode ? Number(cartItem.saleUnits || 1) : 1))" class="px-2 py-1.5 text-slate-600 hover:bg-slate-100 transition"><i class="fa-solid fa-plus text-[10px]"></i></button>
                                     </div>
                                     <button @click="removeFromCart(index)" type="button" title="Eliminar ítem" class="w-8 h-8 rounded-lg bg-red-50 text-red-600 hover:bg-red-600 hover:text-white flex items-center justify-center transition shadow-sm cursor-pointer">
                                         <i class="fa-solid fa-trash text-xs pointer-events-none"></i>
@@ -555,7 +556,7 @@
                 </div>
                 <label class="flex items-center gap-2 text-sm font-semibold text-slate-700">
                     <input type="checkbox" x-model="productForm.boxMode" @change="if (productForm.boxMode) productForm.weightMode = false" class="w-4 h-4 accent-emerald-700">
-                    Compra por caja / venta por unidades
+                    Compra por caja / venta por paquetes
                 </label>
                 <label class="flex items-center gap-2 text-sm font-semibold text-slate-700">
                     <input type="checkbox" x-model="productForm.weightMode" @change="if (productForm.weightMode) productForm.boxMode = false" class="w-4 h-4 accent-emerald-700">
@@ -599,10 +600,10 @@
                     <label x-show="!isEditing" class="text-xs font-semibold text-slate-700">Cantidad de cajas
                         <input type="number" min="1" step="1" x-model.number="productForm.boxCount" :required="productForm.boxMode && !isEditing" :disabled="!productForm.boxMode || isEditing" class="block mt-1 w-full border border-slate-300 rounded px-3 py-2 text-sm">
                     </label>
-                    <label class="text-xs font-semibold text-slate-700">Unidades por precio de venta
+                    <label class="text-xs font-semibold text-slate-700">Unidades por paquete de venta
                         <input type="number" min="1" step="1" x-model.number="productForm.saleUnits" :required="productForm.boxMode" :disabled="!productForm.boxMode" class="block mt-1 w-full border border-slate-300 rounded px-3 py-2 text-sm">
                     </label>
-                    <label class="text-xs font-semibold text-slate-700">Precio de ese grupo ($)
+                    <label class="text-xs font-semibold text-slate-700">Precio de cada paquete ($)
                         <input type="number" min="0" step="0.01" x-model.number="productForm.salePrice" :required="productForm.boxMode" :disabled="!productForm.boxMode" class="block mt-1 w-full border border-slate-300 rounded px-3 py-2 text-sm">
                     </label>
                     <label class="text-xs font-semibold text-slate-700">Precio de venta de la caja completa ($)
@@ -611,10 +612,11 @@
                     <label x-show="isEditing" class="text-xs font-semibold text-slate-700">Existencias actuales en unidades
                         <input type="number" min="0" step="1" x-model.number="productForm.stock" :required="productForm.boxMode && isEditing" :disabled="!productForm.boxMode || !isEditing" class="block mt-1 w-full border border-slate-300 rounded px-3 py-2 text-sm">
                     </label>
-                    <dl class="sm:col-span-2 grid grid-cols-3 gap-2 text-xs py-2 border-y border-slate-200">
+                    <dl class="sm:col-span-2 grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs py-2 border-y border-slate-200">
                         <div><dt>Compra por unidad</dt><dd class="font-bold" x-text="boxPreview ? formatUnitMoney(boxPreview.buyPrice) : '-'"></dd></div>
                         <div><dt>Venta por unidad</dt><dd class="font-bold" x-text="boxPreview ? formatUnitMoney(boxPreview.price) : '-'"></dd></div>
                         <div><dt>Unidades en stock</dt><dd class="font-bold" x-text="boxPreview?.stock ?? '-'"></dd></div>
+                        <div class="col-span-2 sm:col-span-4"><dt>Precio del paquete</dt><dd class="font-bold" x-text="boxPreview ? formatMoney(boxPreview.salePrice) + ' por ' + boxPreview.saleUnits + ' unidades' : '-'"></dd></div>
                     </dl>
                 </div>
                 <div x-show="!productForm.boxMode && !productForm.weightMode" class="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -1019,7 +1021,7 @@
                 productPriceLabel(item) {
                     if (item.presentation === 'box') return this.formatMoney(item.boxSalePrice) + ' / caja';
                     if (item.weightMode) return this.formatMoney(item.price) + ' / ' + item.weightUnit;
-                    return item.boxMode ? this.formatMoney(item.salePrice) + ' / ' + item.saleUnits + ' unid.' : this.formatUnitMoney(item.price);
+                    return item.boxMode ? this.formatMoney(item.salePrice) + ' / paquete de ' + item.saleUnits + ' unidades' : this.formatUnitMoney(item.price);
                 },
                 productPresentationPrice(item, presentation) {
                     return presentation === 'box' ? (item.boxSalePrice == null ? 'Sin precio por caja' : this.formatMoney(item.boxSalePrice) + ' / caja') : this.productPriceLabel(item);
@@ -1184,12 +1186,12 @@
                         id: product.id, lineId, presentation, unitsPerBox: Number(product.unitsPerBox || 1),
                         boxSalePrice: product.boxSalePrice ?? null, code: product.code, name: product.name,
                         price: presentation === 'box' ? Number(product.boxSalePrice) : Number(product.price),
-                        boxMode: !!product.boxMode, saleUnits: Number(product.saleUnits || 1),
+                        boxMode: !!product.boxMode, saleUnits: Number(product.saleUnits || 1), saleGroupMode: !!product.boxMode && presentation !== 'box',
                         salePrice: Number(product.salePrice ?? product.price), weightMode: !!product.weightMode,
                     weightUnit: product.weightUnit || '', weightUnitKg: Number(product.weightUnitKg || 0), qty: 0,
                         amountMode: false, saleAmount: 0
                     };
-                    const increment = 1;
+                    const increment = item.saleGroupMode ? Number(item.saleUnits || 1) : 1;
                     if (item.qty + increment > this.cartMaxQty(item)) {
                         this.showNotification('Stock insuficiente para esta presentacion.');
                         return;
@@ -1253,7 +1255,11 @@
                         return;
                     }
                     if (maximum < 1) { this.removeFromCart(index); return; }
-                    item.qty = Math.max(1, Math.min(maximum, Math.floor(Number(item.qty) || 1)));
+                    const saleStep = item.saleGroupMode ? Number(item.saleUnits || 1) : 1;
+                    const entered = Math.floor(Number(item.qty) || 0);
+                    const groupedQty = Math.floor(entered / saleStep) * saleStep;
+                    if (groupedQty < saleStep) { this.removeFromCart(index); return; }
+                    item.qty = Math.min(maximum, groupedQty);
                 },
 
                 removeFromCart(index) {
@@ -1416,7 +1422,7 @@
                         date: new Date().toISOString(),
                         paymentMethod: this.paymentMethod,
                         itemsCount: this.cart.reduce((sum, item) => sum + this.stockUnits(item), 0),
-                        items: this.cart.map(item => ({ ...item })),
+                        items: this.cart.map(({ saleGroupMode, amountMode, saleAmount, ...item }) => ({ ...item })),
                         total: this.cartTotal
                     };
                     try {

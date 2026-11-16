@@ -32,6 +32,7 @@ export function cashierSale(sale, products, user) {
             if (!product.boxMode || product.boxSalePrice == null || Number(item.boxSalePrice) !== Number(product.boxSalePrice)) throw new Error('El precio de caja cambio. Agrega el producto nuevamente.');
             line.boxQty += item.qty;
         } else {
+            if (product.boxMode && item.qty % line.saleUnits !== 0) throw new Error('La venta debe usar paquetes de ' + line.saleUnits + ' unidades.');
             if (Number(item.price) !== Number(product.price) || Number(item.salePrice ?? item.price) !== line.salePrice) throw new Error('El precio cambio. Agrega el producto nuevamente.');
             line.unitQty += item.qty;
         }

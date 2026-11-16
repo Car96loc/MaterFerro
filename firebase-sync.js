@@ -4,8 +4,8 @@ import { getFirestore, collection, doc, getDocs, setDoc, deleteDoc, onSnapshot, 
 import { catalogProduct, cashierSale, expandCashierSale, historicalProduct } from './access.js?v=weight-1';
 window.ferroAccess = { catalogProduct };
 import { businessDay, parseSaleDate, saleTotals, itemTotals, salesReport, displaySaleDate, withInventoryCosts } from './sales-report.js?v=weight-1';
-import { lineAmount, productValues, stockUnits, maxCartQuantity } from './pricing.js?v=weight-4';
-import { inventoryReport } from './inventory-report.js?v=weight-5';
+import { lineAmount, productValues, stockUnits, maxCartQuantity } from './pricing.js?v=weight-6';
+import { inventoryReport } from './inventory-report.js?v=weight-6';
 import { readDeviceCache, saveDeviceCache, clearDeviceCache } from './device-cache.js?v=gallery-1';
 import { matchesProduct, compressProductPhoto, validProductPhoto } from './product-tools.js?v=gallery-1';
 import { productPhotos, mountCropper, disposeCropper, cropAction, exportCrop } from './photo-editor.js?v=gallery-1';
@@ -275,6 +275,7 @@ window.ferroFirebase = {
                     ? Number.isFinite(qty) && qty > 0 && Number.isSafeInteger(Math.round(qty * 1000)) && Math.abs(qty * 1000 - Math.round(qty * 1000)) < 1e-7
                     : Number.isSafeInteger(qty) && qty > 0 && Number.isSafeInteger(units);
                 if (!product || !validQty || !Number.isFinite(units) || units <= 0 || product.stock + 1e-9 < previousUnits + units) throw new Error('Existencias insuficientes para ' + item.name);
+                if (product.boxMode && item.presentation !== 'box' && (Number(item.saleUnits) !== Number(product.saleUnits) || qty % Number(product.saleUnits || 1) !== 0)) throw new Error('La venta debe usar paquetes de ' + Number(product.saleUnits || 1) + ' unidades.');
                 if (product.weightMode && (item.presentation !== 'weight' || item.weightUnit !== product.weightUnit || Number(item.price) !== Number(product.price))) {
                     throw new Error('La unidad o el precio por peso cambió. Vuelve a agregar el producto.');
                 }

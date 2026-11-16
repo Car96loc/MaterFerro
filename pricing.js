@@ -37,8 +37,8 @@ export function maxCartQuantity(cart, item, stock) {
         const unitKg = Number(item.weightUnitKg || weightUnitKg(item.weightUnit));
         return Math.max(0, Math.floor(((Number(stock) - otherUnits) / unitKg + Number.EPSILON) * weightQuantityScale) / weightQuantityScale);
     }
-    const size = item.presentation === 'box' ? Number(item.unitsPerBox) : 1;
-    return Math.max(0, Math.floor((Number(stock) - otherUnits) / size));
+    const size = item.presentation === 'box' ? Number(item.unitsPerBox) : (item.boxMode ? Number(item.saleUnits || 1) : 1);
+    return Math.max(0, Math.floor((Number(stock) - otherUnits) / size) * size);
 }
 
 export function productValues(form, editing = false) {

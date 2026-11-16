@@ -26,6 +26,7 @@ service cloud.firestore {
               && line.unitsSold == line.weightQtyMilli * p.weightUnitKg / 1000)
           || (p.get('weightMode', false) != true && line.get('weightMode', false) != true
               && line.unitQty is int && line.unitQty >= 0 && line.boxQty is int && line.boxQty >= 0
+              && (p.get('boxMode', false) != true || line.unitQty == 0 || line.unitQty % p.saleUnits == 0)
               && (line.boxQty == 0 || (p.boxMode && p.boxSalePrice != null))
               && line.unitsSold == line.unitQty + line.boxQty * p.unitsPerBox));
     }
