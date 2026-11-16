@@ -69,8 +69,10 @@ export function productValues(form, editing = false) {
     const saleUnits = boxMode ? Number(form.saleUnits) : 1;
     const salePrice = boxMode ? Number(form.salePrice) : Number(form.price || 0);
     const boxSalePrice = boxMode && form.boxSalePrice !== '' && form.boxSalePrice != null ? Number(form.boxSalePrice) : null;
-    const boxCount = boxMode && !editing ? Number(form.boxCount) : 1;
-    const stock = boxMode && !editing ? unitsPerBox * boxCount : Number(form.stock || 0);
+    const boxCount = boxMode && (!editing || form.boxRestock) ? Number(form.boxCount) : 1;
+    const currentStock = Number(form.stock || 0);
+    const stock = boxMode && !editing ? unitsPerBox * boxCount
+        : boxMode && form.boxRestock ? currentStock + unitsPerBox * boxCount : currentStock;
     if (![unitsPerBox, saleUnits, boxCount].every(value => Number.isSafeInteger(value) && value > 0)
         || !Number.isSafeInteger(stock) || stock < 0
         || ![boxCost, salePrice].every(value => Number.isFinite(value) && value >= 0)) {
