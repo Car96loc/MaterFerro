@@ -4,8 +4,8 @@ import { getFirestore, collection, doc, getDocs, setDoc, deleteDoc, onSnapshot, 
 import { catalogProduct, cashierSale, expandCashierSale, historicalProduct } from './access.js?v=weight-1';
 window.ferroAccess = { catalogProduct };
 import { businessDay, parseSaleDate, saleTotals, itemTotals, salesReport, displaySaleDate, withInventoryCosts } from './sales-report.js?v=weight-1';
-import { lineAmount, productValues, stockUnits, maxCartQuantity } from './pricing.js?v=weight-3';
-import { inventoryReport } from './inventory-report.js?v=weight-3';
+import { lineAmount, productValues, stockUnits, maxCartQuantity } from './pricing.js?v=weight-4';
+import { inventoryReport } from './inventory-report.js?v=weight-4';
 import { readDeviceCache, saveDeviceCache, clearDeviceCache } from './device-cache.js?v=gallery-1';
 import { matchesProduct, compressProductPhoto, validProductPhoto } from './product-tools.js?v=gallery-1';
 import { productPhotos, mountCropper, disposeCropper, cropAction, exportCrop } from './photo-editor.js?v=gallery-1';
