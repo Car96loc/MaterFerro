@@ -4,8 +4,8 @@ import { getFirestore, collection, doc, getDocs, setDoc, deleteDoc, onSnapshot, 
 import { catalogProduct, cashierSale, expandCashierSale, historicalProduct } from './access.js?v=weight-1';
 window.ferroAccess = { catalogProduct };
 import { businessDay, parseSaleDate, saleTotals, itemTotals, salesReport, displaySaleDate, withInventoryCosts } from './sales-report.js?v=weight-1';
-import { lineAmount, productValues, stockUnits, maxCartQuantity } from './pricing.js?v=weight-1';
-import { inventoryReport } from './inventory-report.js?v=weight-1';
+import { lineAmount, productValues, stockUnits, maxCartQuantity } from './pricing.js?v=weight-2';
+import { inventoryReport } from './inventory-report.js?v=weight-2';
 import { readDeviceCache, saveDeviceCache, clearDeviceCache } from './device-cache.js?v=gallery-1';
 import { matchesProduct, compressProductPhoto, validProductPhoto } from './product-tools.js?v=gallery-1';
 import { productPhotos, mountCropper, disposeCropper, cropAction, exportCrop } from './photo-editor.js?v=gallery-1';
@@ -206,6 +206,8 @@ window.ferroFirebase = {
             buyPrice: Number(item.buyPrice || 0), price: Number(item.price || 0), stock: Number(item.stock || 0),
             boxMode: !!item.boxMode, weightMode: !!item.weightMode, weightUnit: item.weightMode ? String(item.weightUnit) : null,
             weightUnitKg: item.weightMode ? Number(item.weightUnitKg) : null,
+            weightPurchaseCost: item.weightMode ? Number(item.weightPurchaseCost) : null,
+            weightPurchaseKg: item.weightMode ? Number(item.weightPurchaseKg) : null,
             unitsPerBox: Number(item.unitsPerBox || 1), boxCost: Number(item.boxCost ?? item.buyPrice ?? 0),
             saleUnits: Number(item.saleUnits || 1), salePrice: Number(item.salePrice ?? item.price ?? 0),
             boxSalePrice: item.boxSalePrice == null ? null : Number(item.boxSalePrice)

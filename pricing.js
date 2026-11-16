@@ -43,17 +43,24 @@ export function maxCartQuantity(cart, item, stock) {
 
 export function productValues(form, editing = false) {
     if (form.weightMode) {
-        const unit = String(form.weightUnit || 'kg');
+        const unit = String(form.weightUnit || 'lb');
         const unitKg = weightUnitKg(unit);
-        const stock = Number(form.stock || 0);
-        const buyPrice = Number(form.buyPrice || 0);
+        const purchaseKg = Number(form.weightPurchaseKg || (editing ? 1 : 0));
+        const purchaseCost = Number(form.weightPurchaseCost ?? (editing ? form.buyPrice : 0));
+        const boxCount = editing ? 1 : Number(form.weightBoxCount || 1);
+        const stock = editing ? Number(form.stock || 0) : purchaseKg * boxCount;
+        const buyPrice = purchaseKg > 0 ? purchaseCost / purchaseKg : 0;
         const price = Number(form.price || 0);
         if (form.boxMode || !unitKg || ![stock, buyPrice, price].every(value => Number.isFinite(value) && value >= 0)
+            || !(purchaseKg > 0) || !Number.isSafeInteger(boxCount) || boxCount <= 0
+            || !Number.isFinite(purchaseCost) || purchaseCost < 0
+            || Math.abs(purchaseKg * 1000 - Math.round(purchaseKg * 1000)) > 1e-7
             || Math.abs(stock * 1000 - Math.round(stock * 1000)) > 1e-7) {
             throw new Error('Revisa el peso, la unidad de venta y los precios.');
         }
         return { boxMode: false, weightMode: true, weightUnit: unit, weightUnitKg: unitKg,
-            unitsPerBox: 1, boxCost: buyPrice * stock, saleUnits: 1, salePrice: price,
+            unitsPerBox: 1, boxCost: purchaseCost * boxCount, weightPurchaseCost: purchaseCost,
+            weightPurchaseKg: purchaseKg, saleUnits: 1, salePrice: price,
             boxSalePrice: null, buyPrice, price, stock };
     }
     const boxMode = !!form.boxMode;
