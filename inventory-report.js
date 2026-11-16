@@ -1,4 +1,4 @@
-import { lineAmount } from './pricing.js?v=weight-2';
+import { lineAmount } from './pricing.js?v=weight-3';
 
 function validNumber(value) {
     return value !== null && value !== undefined && value !== '' && Number.isFinite(Number(value)) && Number(value) >= 0;

@@ -45,10 +45,10 @@ export function productValues(form, editing = false) {
     if (form.weightMode) {
         const unit = String(form.weightUnit || 'lb');
         const unitKg = weightUnitKg(unit);
-        const purchaseKg = Number(form.weightPurchaseKg || (editing ? 1 : 0));
+        const purchaseKg = Number(form.weightPurchaseKg || 0);
         const purchaseCost = Number(form.weightPurchaseCost ?? (editing ? form.buyPrice : 0));
         const boxCount = editing ? 1 : Number(form.weightBoxCount || 1);
-        const stock = editing ? Number(form.stock || 0) : purchaseKg * boxCount;
+        const stock = editing && !form.weightRestock ? Number(form.stock || 0) : purchaseKg * boxCount;
         const buyPrice = purchaseKg > 0 ? purchaseCost / purchaseKg : 0;
         const price = Number(form.price || 0);
         if (form.boxMode || !unitKg || ![stock, buyPrice, price].every(value => Number.isFinite(value) && value >= 0)
