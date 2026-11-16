@@ -178,6 +178,9 @@
                         </select>
                     </div>
 
+                    <p x-show="inventory.some(item => !(Number(item.price) > 0))" class="px-4 py-2 text-xs text-amber-800 bg-amber-50 border-b border-amber-100">
+                        <span x-text="inventory.filter(item => !(Number(item.price) > 0)).length"></span> producto(s) tienen el precio de venta pendiente y no aparecen en caja.
+                    </p>
                     <div class="product-grid flex-1" :inert="!authReady">
                         <template x-for="item in filteredPosProducts" :key="item.id">
                             <div x-data="{ sellBox: false }" @click="addToCart(item, sellBox ? 'box' : 'unit')" :class="productInCart(item.id) ? '!bg-emerald-50 !border-emerald-600 ring-1 ring-emerald-600' : ''" class="product-tile relative bg-white border border-slate-200 rounded overflow-hidden min-w-0 cursor-pointer">
@@ -990,7 +993,7 @@
                     return this.inventory.filter(item => {
                         const matchesSearch = window.ferroProductTools.matchesProduct(item, this.posSearch);
                         const matchesCategory = this.posCategory === '' || item.category === this.posCategory;
-                        return matchesSearch && matchesCategory;
+                        return matchesSearch && matchesCategory && Number(item.price) > 0;
                     });
                 },
 
@@ -1070,6 +1073,10 @@
                 addToCart(product, presentation = 'unit') {
                     if (this.authReady && !this.isAdmin && !this.productInCart(product.id) && new Set(this.cart.map(item => String(item.id))).size >= 8) {
                         this.showNotification('Hasta 8 productos distintos por venta de cajero.'); return;
+                    }
+                    if (presentation !== 'box' && !(Number(product.price) > 0)) {
+                        this.showNotification('El precio de venta está pendiente. Asígnalo antes de agregar este producto.');
+                        return;
                     }
                     if (presentation === 'box' && (!product.boxMode || product.boxSalePrice == null)) {
                         this.showNotification('Define el precio de venta de la caja en el inventario.');
