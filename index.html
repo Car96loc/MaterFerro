@@ -252,9 +252,13 @@
                                     <div class="text-xs text-slate-500" x-show="cartItem.presentation === 'box'" x-text="cartItem.qty + ' caja(s) = ' + stockUnits(cartItem) + ' unidades'"></div>
                                     <div class="text-xs text-slate-500" x-show="cartItem.weightMode" x-text="formatWeightQty(cartItem.qty) + ' ' + cartItem.weightUnit + ' = ' + formatWeight(stockUnits(cartItem)) + ' kg'"></div>
                                     <div class="text-xs font-bold text-emerald-600 mt-0.5" x-text="'Subtotal: ' + formatMoney(lineAmount(cartItem))"></div>
+                                    <button x-show="cartItem.weightMode" type="button" @click="toggleCartAmountMode(cartItem)" class="mt-1 text-[11px] text-blue-700 underline" x-text="cartItem.amountMode ? 'Ingresar por peso' : 'Ingresar por monto ($)'"></button>
                                 </div>
                                 <div class="col-span-2 flex items-center justify-end space-x-2">
-                                    <div class="flex items-center border border-slate-300 rounded-lg bg-white overflow-hidden shadow-sm">
+                                    <label x-show="cartItem.weightMode && cartItem.amountMode" class="flex items-center gap-2 text-xs text-slate-600">Cobrar $
+                                        <input type="number" min="0.01" step="0.01" :max="Math.floor(cartMaxQty(cartItem) * cartItem.price * 100) / 100" x-model.number="cartItem.saleAmount" @input="updateCartFromAmount(index)" @blur="finalizeCartAmount(index)" class="w-24 border border-slate-300 rounded-lg px-2 py-1.5 text-center font-bold text-slate-800">
+                                    </label>
+                                    <div x-show="!cartItem.weightMode || !cartItem.amountMode" class="flex items-center border border-slate-300 rounded-lg bg-white overflow-hidden shadow-sm">
                                         <button @click="updateCartQty(index, cartItem.weightMode ? -0.01 : -1)" class="px-2 py-1.5 text-slate-600 hover:bg-slate-100 transition"><i class="fa-solid fa-minus text-[10px]"></i></button>
                                         <input type="number" 
                                                :min="cartItem.weightMode ? 0.001 : 1"
@@ -1182,7 +1186,8 @@
                         price: presentation === 'box' ? Number(product.boxSalePrice) : Number(product.price),
                         boxMode: !!product.boxMode, saleUnits: Number(product.saleUnits || 1),
                         salePrice: Number(product.salePrice ?? product.price), weightMode: !!product.weightMode,
-                    weightUnit: product.weightUnit || '', weightUnitKg: Number(product.weightUnitKg || 0), qty: 0
+                    weightUnit: product.weightUnit || '', weightUnitKg: Number(product.weightUnitKg || 0), qty: 0,
+                        amountMode: false, saleAmount: 0
                     };
                     const increment = 1;
                     if (item.qty + increment > this.cartMaxQty(item)) {
@@ -1198,8 +1203,35 @@
                     const rawNext = Number(item.qty || 0) + change;
                     const next = item.weightMode ? Math.round(rawNext * 1000) / 1000 : rawNext;
                     if (next <= 0) this.removeFromCart(index);
-                    else if (next <= this.cartMaxQty(item)) item.qty = next;
+                    else if (next <= this.cartMaxQty(item)) { item.qty = next; if (item.weightMode) item.saleAmount = this.lineAmount(item); }
                     else this.showNotification('Stock insuficiente para esta presentacion.');
+                },
+
+                toggleCartAmountMode(item) {
+                    if (!item.weightMode) return;
+                    item.amountMode = !item.amountMode;
+                    item.saleAmount = this.lineAmount(item);
+                },
+
+                updateCartFromAmount(index) {
+                    const item = this.cart[index];
+                    if (!item?.weightMode) return;
+                    const amount = Number(item.saleAmount);
+                    const price = Number(item.price);
+                    if (!Number.isFinite(amount) || amount <= 0 || !Number.isFinite(price) || price <= 0) return;
+                    const maximum = this.cartMaxQty(item);
+                    const quantity = Math.round(amount / price * 1000) / 1000;
+                    item.qty = Math.min(quantity, maximum);
+                },
+
+                finalizeCartAmount(index) {
+                    const item = this.cart[index];
+                    if (!item?.weightMode) return;
+                    const amount = Number(item.saleAmount);
+                    if (!Number.isFinite(amount) || amount < 0.01) { this.removeFromCart(index); return; }
+                    this.updateCartFromAmount(index);
+                    if (item.qty < 0.001 || item.qty > this.cartMaxQty(item)) { this.removeFromCart(index); return; }
+                    item.saleAmount = this.lineAmount(item);
                 },
 
                 validateManualQty(index) {
