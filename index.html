@@ -29,7 +29,7 @@
         ::-webkit-scrollbar-track { background: #f1f5f9; }
         ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
     </style>
-    <script type="module" src="./firebase-sync.js?v=weight-4"></script>
+    <script type="module" src="./firebase-sync.js?v=weight-5"></script>
 </head>
 <body class="bg-slate-100 text-slate-800 h-full flex flex-col overflow-x-hidden" x-data="ferroApp()">
     <div x-cloak x-show="!authPending && !authReady" class="fixed inset-0 z-50 bg-slate-100 flex items-center justify-center p-4">
@@ -347,6 +347,7 @@
                                         <button @click="editProduct(item)" title="Editar" class="w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 transition inline-flex items-center justify-center">
                                             <i class="fa-solid fa-pen text-xs"></i>
                                         </button>
+                                        <button @click="openOwnUse(item)" type="button" title="Descontar para uso propio" aria-label="Descontar para uso propio" class="w-8 h-8 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-700 transition inline-flex items-center justify-center"><i class="fa-solid fa-hand-holding text-xs"></i></button>
                                         <button @click="promptDeleteProduct(item)" type="button" title="Eliminar producto" class="w-8 h-8 rounded-lg bg-red-50 hover:bg-red-600 text-red-600 hover:text-white transition inline-flex items-center justify-center shadow-sm cursor-pointer">
                                             <i class="fa-solid fa-trash text-xs pointer-events-none"></i>
                                         </button>
@@ -650,6 +651,20 @@
         </div>
     </div>
 
+    <div x-show="isOwnUseOpen" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-[70] flex items-center justify-center p-4" style="display:none">
+        <form @submit.prevent="confirmOwnUse()" class="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6 space-y-4">
+            <div><h3 class="font-bold text-base text-slate-900">Descontar para uso propio</h3><p class="mt-1 text-sm text-slate-600" x-text="ownUseItem?.name"></p></div>
+            <label class="block text-xs font-semibold text-slate-700">Cantidad <span x-text="ownUseItem?.weightMode ? '(kg)' : '(unidades)'"></span>
+                <input type="number" min="0.001" :step="ownUseItem?.weightMode ? 0.001 : 1" x-model.number="ownUseQuantity" required class="mt-1 block w-full border border-slate-300 rounded-lg px-3 py-2 text-sm">
+            </label>
+            <label class="block text-xs font-semibold text-slate-700">Nota (opcional)
+                <input type="text" x-model="ownUseReason" maxlength="160" placeholder="Ej. Balanza para uso del local" class="mt-1 block w-full border border-slate-300 rounded-lg px-3 py-2 text-sm">
+            </label>
+            <p class="text-xs text-slate-500">Se rebajará del inventario y quedará anotado como uso propio. No se registra una venta ni un cobro.</p>
+            <div class="flex gap-2"><button type="button" @click="isOwnUseOpen = false" class="flex-1 py-2.5 bg-slate-100 rounded-xl text-sm">Cancelar</button><button type="submit" :disabled="ownUseBusy" class="flex-1 py-2.5 bg-amber-500 hover:bg-amber-600 rounded-xl text-sm font-bold disabled:opacity-50" x-text="ownUseBusy ? 'Guardando…' : 'Descontar' "></button></div>
+        </form>
+    </div>
+
     <div x-show="isCheckoutOpen" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-3 md:p-4" style="display: none;">
         <div @click.away="isCheckoutOpen = false" class="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden border border-slate-200 max-h-[90vh] flex flex-col">
             <div class="p-4 bg-slate-900 text-white flex justify-between items-center shrink-0">
@@ -797,6 +812,11 @@
                 isProductModalOpen: false,
                 isCheckoutOpen: false,
                 isDeleteModalOpen: false,
+                isOwnUseOpen: false,
+                ownUseItem: null,
+                ownUseQuantity: 1,
+                ownUseReason: '',
+                ownUseBusy: false,
                 isSaleDetailOpen: false,
                 isReturnAuthOpen: false,
                 mobileMenuOpen: false,
@@ -1303,6 +1323,30 @@
                 promptDeleteProduct(item) {
                     this.itemToDelete = item;
                     this.isDeleteModalOpen = true;
+                },
+
+                openOwnUse(item) {
+                    this.ownUseItem = item;
+                    this.ownUseQuantity = item.weightMode ? 0.001 : 1;
+                    this.ownUseReason = '';
+                    this.isOwnUseOpen = true;
+                },
+
+                async confirmOwnUse() {
+                    if (!this.ownUseItem || this.ownUseBusy) return;
+                    this.ownUseBusy = true;
+                    try {
+                        await window.ferroFirebase.withdrawForOwnUse(this.ownUseItem.id, this.ownUseQuantity, this.ownUseReason);
+                        const item = this.inventory.find(row => String(row.id) === String(this.ownUseItem.id));
+                        if (item) item.stock = Math.round((Number(item.stock) - Number(this.ownUseQuantity)) * 1000) / 1000;
+                        this.showNotification('Descuento de uso propio registrado');
+                        this.isOwnUseOpen = false;
+                        this.ownUseItem = null;
+                    } catch (error) {
+                        this.showNotification(error.message || 'No se pudo descontar el inventario');
+                    } finally {
+                        this.ownUseBusy = false;
+                    }
                 },
 
                 async confirmDeleteProduct() {

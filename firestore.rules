@@ -59,6 +59,7 @@ service cloud.firestore {
     }
     match /artifacts/ferromaster-pos/public/data/inventory/{id} { allow read, write: if isOwner(); }
     match /artifacts/ferromaster-pos/public/data/costs/{id} { allow read, create: if isOwner(); }
+    match /artifacts/ferromaster-pos/public/data/inventoryAdjustments/{id} { allow read, create: if isOwner(); }
     match /artifacts/ferromaster-pos/public/data/catalog/{id} {
       allow read: if isOwner() || isCashier();
       allow create, delete: if isOwner();

@@ -5,7 +5,7 @@ import { catalogProduct, cashierSale, expandCashierSale, historicalProduct } fro
 window.ferroAccess = { catalogProduct };
 import { businessDay, parseSaleDate, saleTotals, itemTotals, salesReport, displaySaleDate, withInventoryCosts } from './sales-report.js?v=weight-1';
 import { lineAmount, productValues, stockUnits, maxCartQuantity } from './pricing.js?v=weight-4';
-import { inventoryReport } from './inventory-report.js?v=weight-4';
+import { inventoryReport } from './inventory-report.js?v=weight-5';
 import { readDeviceCache, saveDeviceCache, clearDeviceCache } from './device-cache.js?v=gallery-1';
 import { matchesProduct, compressProductPhoto, validProductPhoto } from './product-tools.js?v=gallery-1';
 import { productPhotos, mountCropper, disposeCropper, cropAction, exportCrop } from './photo-editor.js?v=gallery-1';
@@ -218,6 +218,28 @@ window.ferroFirebase = {
         }));
     },
     deleteProduct(id) { if (allowed) adminOnly(); return write(() => runTransaction(db, async transaction => { transaction.delete(ref('inventory', id)); transaction.delete(ref('catalog', id)); })); },
+    withdrawForOwnUse(id, quantity, reason = '') {
+        adminOnly();
+        const qty = Number(quantity);
+        if (!Number.isFinite(qty) || qty <= 0) throw new Error('Ingresa una cantidad válida.');
+        return write(() => runTransaction(db, async transaction => {
+            const inventoryRef = ref('inventory', id);
+            const catalogRef = ref('catalog', id);
+            const adjustmentId = crypto.randomUUID();
+            const adjustmentRef = ref('inventoryAdjustments', adjustmentId);
+            const [inventorySnapshot, catalogSnapshot] = await Promise.all([transaction.get(inventoryRef), transaction.get(catalogRef)]);
+            if (!inventorySnapshot.exists()) throw new Error('No se encontró el producto.');
+            const product = inventorySnapshot.data();
+            const currentStock = Number(catalogSnapshot.exists() ? catalogSnapshot.data().stock : product.stock || 0);
+            const precision = product.weightMode ? 0.001 : 1;
+            if (Math.abs(qty / precision - Math.round(qty / precision)) > 1e-7) throw new Error(product.weightMode ? 'La cantidad debe usar incrementos de 0.001 kg.' : 'La cantidad debe ser un número entero.');
+            if (qty > currentStock) throw new Error('No hay existencias suficientes.');
+            const nextStock = Math.round((currentStock - qty) * 1000) / 1000;
+            transaction.update(inventoryRef, { stock: nextStock });
+            if (catalogSnapshot.exists()) transaction.update(catalogRef, { stock: nextStock });
+            transaction.set(adjustmentRef, { id: adjustmentId, productId: String(id), productName: String(product.name || ''), type: 'own_use', quantity: qty, stockBefore: currentStock, stockAfter: nextStock, reason: String(reason).trim().slice(0, 160), createdAt: serverTimestamp(), createdBy: actor?.email || owner });
+        }));
+    },
     saveSale(sale) { adminOnly(); return write(() => setDoc(ref('sales', sale.id), sale)); },
     updateSale(sale) { adminOnly(); return write(() => setDoc(ref('sales', sale.id), sale)); },
     deleteSale(id) { adminOnly(); return write(() => deleteDoc(ref('sales', id))); },
